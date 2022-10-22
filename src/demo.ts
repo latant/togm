@@ -1,18 +1,18 @@
-import t from "./define";
+import { def } from "./togm";
 
-const graph = t.graph({
-  HAS_ARTICLE: t.relationship({
-    name: t.string(),
+const graph = def.graph({
+  HAS_ARTICLE: def.relationship({
+    name: def.string(),
   }),
-  User: t.node({
-    email: t.string(),
-    roles: t.stringArrayOrNull<"USER" | "ADMIN">(),
-    articles: t.manyOut("HAS_ARTICLE", "Article"),
+  User: def.node({
+    email: def.string(),
+    roles: def.stringArrayOrNull<"USER" | "ADMIN">(),
+    articles: def.manyOut("HAS_ARTICLE", "Article"),
   }),
-  Article: t.node({
-    title: t.string(),
-    isbn: t.numberOrNull(),
-    author: t.oneIn("HAS_ARTICLE", "User"),
+  Article: def.node({
+    title: def.string(),
+    isbn: def.numberOrNull(),
+    author: def.oneIn("HAS_ARTICLE", "User"),
   }),
 });
 
@@ -31,103 +31,103 @@ graph.create.Article({
 
 graph.update.Article(0, { isbn: null });
 
-const globalvetGraph = t.graph({
-  User: t.node({
-    acceptedPrivacyPolicy: t.oneOut("ACCEPTED_PRIVACY_POLICY", "AcceptedPrivacPolicy"),
-    vetRegistrationNumber: t.optOut("HAS_REGISTRATION_NUMBER", "VetRegistrationNumber"),
-    recoveryToken: t.optOut("HAS_RECOVERY_TOKEN", "RecoveryToken"),
-    recoverySmsCode: t.optOut("HAS_RECOVERY_SMS", "RecoverySmsCode"),
-    pinCode: t.optOut("HAS_PIN_CODE", "PinCode"),
-    vetProfession: t.optOut("IS_VET_AS", "VetProfession"),
-    pets: t.manyOut("HAS_USER_PET", "UserPet"),
-    clinicRegistrations: t.manyIn("IS_REGISTERED_USER_AS", "PetOwner"),
+const globalvetGraph = def.graph({
+  User: def.node({
+    acceptedPrivacyPolicy: def.oneOut("ACCEPTED_PRIVACY_POLICY", "AcceptedPrivacPolicy"),
+    vetRegistrationNumber: def.optOut("HAS_REGISTRATION_NUMBER", "VetRegistrationNumber"),
+    recoveryToken: def.optOut("HAS_RECOVERY_TOKEN", "RecoveryToken"),
+    recoverySmsCode: def.optOut("HAS_RECOVERY_SMS", "RecoverySmsCode"),
+    pinCode: def.optOut("HAS_PIN_CODE", "PinCode"),
+    vetProfession: def.optOut("IS_VET_AS", "VetProfession"),
+    pets: def.manyOut("HAS_USER_PET", "UserPet"),
+    clinicRegistrations: def.manyIn("IS_REGISTERED_USER_AS", "PetOwner"),
   }),
-  AcceptedPrivacPolicy: t.node({}),
-  VetRegistrationNumber: t.node({}),
-  RecoveryToken: t.node({}),
-  RecoverySmsCode: t.node({}),
-  PinCode: t.node({}),
-  VetProfession: t.node({
-    documents: t.manyOut("IS_PROVED_BY_DOCUMENTS", "VetProfessionDocument"),
+  AcceptedPrivacPolicy: def.node({}),
+  VetRegistrationNumber: def.node({}),
+  RecoveryToken: def.node({}),
+  RecoverySmsCode: def.node({}),
+  PinCode: def.node({}),
+  VetProfession: def.node({
+    documents: def.manyOut("IS_PROVED_BY_DOCUMENTS", "VetProfessionDocument"),
   }),
-  VetProfessionDocument: t.node({}),
-  UserPet: t.node({
-    owner: t.oneIn("HAS_USER_PET", "User"),
+  VetProfessionDocument: def.node({}),
+  UserPet: def.node({
+    owner: def.oneIn("HAS_USER_PET", "User"),
   }),
-  Organization: t.node({
-    owner: t.oneIn("OWNS_ORGANIZATION", "User"),
-    employmentRequests: t.oneOut("ORGANIZATION_OF_EMPLOYMENT_REQUEST", "OrganizationEmploymentRequest"),
-    fortnoxAccount: t.optIn("HAS_FORTNOX_ACCOUNT", "FortnoxAccount"),
-    serviceContracts: t.manyOut("HAS_SERVICE_CONTRACT", "PetOwnerServiceContract"),
-    stripeCustomer: t.optOut("HAS_STRIPE_CUSTOMER", "StripeCustomer"),
-    paymentMethods: t.manyOut("HAS_PAYMENT_METHOD", "PaymentMethod"),
-    country: t.oneOut("LOCATED_IN_COUNTRY", "Country"),
-    accountingCodes: t.manyOut("HAS_ACCOUNTING_CODE", "AccountingCode"),
-    addresses: t.manyOut("HAS_ADDRESS", "OrganizationAddress"),
-    emails: t.manyOut("HAS_EMAIL", "OrganizationEmail"),
-    phones: t.manyOut("HAS_PHONE", "OrganizationPhone"),
-    giroAccounts: t.manyOut("HAS_GIRO_ACCOUNT", "GiroAccount"),
-    employees: t.manyIn("EMPLOYEE_OF_ORGANIZATION", "User"),
-    inventoryCategories: t.manyOut("HAS_INVENTORY_CATEGORY", "InventoryCategory"),
-    clinics: t.manyIn("CLINIC_OF_ORGANIZATION", "Clinic"),
+  Organization: def.node({
+    owner: def.oneIn("OWNS_ORGANIZATION", "User"),
+    employmentRequests: def.oneOut("ORGANIZATION_OF_EMPLOYMENT_REQUEST", "OrganizationEmploymentRequest"),
+    fortnoxAccount: def.optIn("HAS_FORTNOX_ACCOUNT", "FortnoxAccount"),
+    serviceContracts: def.manyOut("HAS_SERVICE_CONTRACT", "PetOwnerServiceContract"),
+    stripeCustomer: def.optOut("HAS_STRIPE_CUSTOMER", "StripeCustomer"),
+    paymentMethods: def.manyOut("HAS_PAYMENT_METHOD", "PaymentMethod"),
+    country: def.oneOut("LOCATED_IN_COUNTRY", "Country"),
+    accountingCodes: def.manyOut("HAS_ACCOUNTING_CODE", "AccountingCode"),
+    addresses: def.manyOut("HAS_ADDRESS", "OrganizationAddress"),
+    emails: def.manyOut("HAS_EMAIL", "OrganizationEmail"),
+    phones: def.manyOut("HAS_PHONE", "OrganizationPhone"),
+    giroAccounts: def.manyOut("HAS_GIRO_ACCOUNT", "GiroAccount"),
+    employees: def.manyIn("EMPLOYEE_OF_ORGANIZATION", "User"),
+    inventoryCategories: def.manyOut("HAS_INVENTORY_CATEGORY", "InventoryCategory"),
+    clinics: def.manyIn("CLINIC_OF_ORGANIZATION", "Clinic"),
   }),
-  OrganizationEmploymentRequest: t.node({
-    sender: t.oneIn("SENT_ORGANIZATION_EMPLOYMENT_REQUEST", "User"),
-    receiver: t.oneIn("RECEIVED_ORGANIZATION_EMPLOYMENT_REQUEST", "User"),
-    organization: t.oneOut("ORGANIZATION_OF_EMPLOYMENT_REQUEST", "Organization"),
+  OrganizationEmploymentRequest: def.node({
+    sender: def.oneIn("SENT_ORGANIZATION_EMPLOYMENT_REQUEST", "User"),
+    receiver: def.oneIn("RECEIVED_ORGANIZATION_EMPLOYMENT_REQUEST", "User"),
+    organization: def.oneOut("ORGANIZATION_OF_EMPLOYMENT_REQUEST", "Organization"),
   }),
-  FortnoxAccount: t.node({
-    organization: t.oneIn("HAS_FORTNOX_ACCOUNT", "Organization"),
+  FortnoxAccount: def.node({
+    organization: def.oneIn("HAS_FORTNOX_ACCOUNT", "Organization"),
   }),
-  FortnoxCustomer: t.node({
-    organization: t.oneOut("FORTNOX_CUSTOMER_IN_ORGANIZATION", "Organization"),
-    petOwner: t.oneIn("FORTNOX_CUSTOMER_FOR_PET_OWNER", "PetOwner"),
+  FortnoxCustomer: def.node({
+    organization: def.oneOut("FORTNOX_CUSTOMER_IN_ORGANIZATION", "Organization"),
+    petOwner: def.oneIn("FORTNOX_CUSTOMER_FOR_PET_OWNER", "PetOwner"),
   }),
-  PetOwnerServiceContract: t.node({
-    organization: t.oneIn("HAS_SERVICE_CONTRACT", "Organization"),
-    petOwnerUser: t.oneIn("ACCEPTED_SERVICE_CONTRACT", "User"),
+  PetOwnerServiceContract: def.node({
+    organization: def.oneIn("HAS_SERVICE_CONTRACT", "Organization"),
+    petOwnerUser: def.oneIn("ACCEPTED_SERVICE_CONTRACT", "User"),
   }),
-  StripeCustomer: t.node({}),
-  StripeAccount: t.node({}),
-  PaymentMethod: t.node({}),
-  Country: t.node({
-    organizations: t.manyIn("LOCATED_IN_COUNTRY", "Organization"),
+  StripeCustomer: def.node({}),
+  StripeAccount: def.node({}),
+  PaymentMethod: def.node({}),
+  Country: def.node({
+    organizations: def.manyIn("LOCATED_IN_COUNTRY", "Organization"),
   }),
-  AccountingCode: t.node({}),
-  OrganizationEmail: t.node({}),
-  OrganizationAddress: t.node({}),
-  OrganizationPhone: t.node({}),
-  GiroAccount: t.node({
-    organization: t.oneIn("HAS_GIRO_ACCOUNT", "Organization"),
+  AccountingCode: def.node({}),
+  OrganizationEmail: def.node({}),
+  OrganizationAddress: def.node({}),
+  OrganizationPhone: def.node({}),
+  GiroAccount: def.node({
+    organization: def.oneIn("HAS_GIRO_ACCOUNT", "Organization"),
   }),
-  EMPLOYEE_OF_ORGANIZATION: t.relationship({}),
-  InventoryCategory: t.node({
-    organization: t.oneIn("HAS_INVENTORY_CATEGORY", "Organization"),
-    items: t.manyOut("HAS_INVENTORY_ITEMS", "InventoryItem"),
+  EMPLOYEE_OF_ORGANIZATION: def.relationship({}),
+  InventoryCategory: def.node({
+    organization: def.oneIn("HAS_INVENTORY_CATEGORY", "Organization"),
+    items: def.manyOut("HAS_INVENTORY_ITEMS", "InventoryItem"),
   }),
-  InventoryItem: t.node({}),
-  Clinic: t.node({
-    organization: t.oneOut("CLINIC_OF_ORGANIZATION", "Organization"),
-    affiliatedSwedishPharmacies: t.manyOut("AFFILIATED_SWEDISH_PHARMACY", "SwedishPharmacy"),
-    reservationTypes: t.manyIn("RESERVATION_TYPE_IN_CLINIC", "ReservationType"),
+  InventoryItem: def.node({}),
+  Clinic: def.node({
+    organization: def.oneOut("CLINIC_OF_ORGANIZATION", "Organization"),
+    affiliatedSwedishPharmacies: def.manyOut("AFFILIATED_SWEDISH_PHARMACY", "SwedishPharmacy"),
+    reservationTypes: def.manyIn("RESERVATION_TYPE_IN_CLINIC", "ReservationType"),
   }),
-  SwedishPharmacy: t.node({}),
-  ClinicFee: t.node({
-    giroAccount: t.optOut("FEE_TO_GIRO_ACCOUNT", "GiroAccount"),
+  SwedishPharmacy: def.node({}),
+  ClinicFee: def.node({
+    giroAccount: def.optOut("FEE_TO_GIRO_ACCOUNT", "GiroAccount"),
   }),
-  PetOwner: t.node({
-    fortnoxCustomer: t.optIn("FORTNOX_CUSTOMER_FOR_PET_OWNER", "PetOwner"),
-    phones: t.manyOut("HAS_PHONE", "PetOwnerPhone"),
-    emails: t.manyOut("HAS_EMAIL", "PetOwnerEmail"),
-    addresses: t.manyOut("HAS_ADDRESS", "PetOwnerAddress"),
-    user: t.optOut("IS_REGISTERED_USER_AS", "User"),
+  PetOwner: def.node({
+    fortnoxCustomer: def.optIn("FORTNOX_CUSTOMER_FOR_PET_OWNER", "PetOwner"),
+    phones: def.manyOut("HAS_PHONE", "PetOwnerPhone"),
+    emails: def.manyOut("HAS_EMAIL", "PetOwnerEmail"),
+    addresses: def.manyOut("HAS_ADDRESS", "PetOwnerAddress"),
+    user: def.optOut("IS_REGISTERED_USER_AS", "User"),
   }),
-  ReservationType: t.node({
-    clinic: t.oneOut("RESERVATION_TYPE_IN_CLINIC", "ReservationType"),
+  ReservationType: def.node({
+    clinic: def.oneOut("RESERVATION_TYPE_IN_CLINIC", "ReservationType"),
   }),
-  PetOwnerPhone: t.node({}),
-  PetOwnerEmail: t.node({}),
-  PetOwnerAddress: t.node({}),
+  PetOwnerPhone: def.node({}),
+  PetOwnerEmail: def.node({}),
+  PetOwnerAddress: def.node({}),
 });
 
 const x = globalvetGraph.select.Clinic({

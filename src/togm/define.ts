@@ -161,11 +161,11 @@ type PropRecord<M extends NodeMembers | RelMembers> = {
   [P in keyof M as PropKey<M, P>]: M[P] extends Property ? PropertyType<M[P]> : never;
 };
 
-export function node<M extends NodeMembers>(members: M): { type: "node"; members: M } {
+export function defineNode<M extends NodeMembers>(members: M): { type: "node"; members: M } {
   return { type: "node", members };
 }
 
-export function relationship<M extends RelMembers>(members: M): { type: "relationship"; members: M } {
+export function defineRelationship<M extends RelMembers>(members: M): { type: "relationship"; members: M } {
   return { type: "relationship", members };
 }
 
@@ -203,6 +203,6 @@ export function referenceFactories(): PascalizeKeys<Flatten1<ReferenceFactories>
   return result;
 }
 
-export function graph<G extends GraphDef>(def: G): Graph<G> {
+export function defineGraph<G extends GraphDef>(def: G): Graph<G> {
   return {} as any;
 }
