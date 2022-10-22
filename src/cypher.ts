@@ -1,24 +1,27 @@
-import { Graph, NodeDef, Reference, RelDef } from "./model";
+import { Graph, NodeDef, Reference, RelDef } from "./define";
+import { error } from "./util";
 
 export type Identifier = {
   type: "identifier";
   identifier?: string;
 };
 
-export type TextNode =
+export type CypherNode =
   | { type: "map"; map: MapEntry[] }
   | { type: "keyword"; keyword: string }
+  | { type: "parameter"; parameter: string; value: unknown }
   | Identifier
-  | TextNode[]
+  | CypherNode[]
   | string
   | undefined
   | false
   | null;
 
-type MapEntry = [TextNode, TextNode];
+type MapEntry = [CypherNode, CypherNode];
 
-export const keyword = (keyword: string): TextNode => ({ type: "keyword", keyword });
+export const keyword = (keyword: string): CypherNode => ({ type: "keyword", keyword });
 export const identifier = (identifier?: string): Identifier => ({ type: "identifier", identifier });
+export const parameter = (parameter: string, value: unknown): CypherNode => ({ type: "parameter", parameter, value });
 
 export const CREATE = keyword("CREATE");
 export const RETURN = keyword("RETURN");
@@ -26,9 +29,10 @@ export const DELETE = keyword("DELETE");
 export const UNWIND = keyword("UNWIND");
 export const MATCH = keyword("MATCH");
 export const WHERE = keyword("WHERE");
+export const SET = keyword("SET");
 export const AS = keyword("AS");
 
-export const generateCypher = (...root: TextNode[]) => {
+export const generateQuery = (...root: CypherNode[]) => {
   const strings: string[] = [];
   let genIdCount = 0;
   let afterKeyword = false;
@@ -42,7 +46,8 @@ export const generateCypher = (...root: TextNode[]) => {
     append(":");
     visit(v);
   };
-  const visit = (node: TextNode) => {
+  const parameters: { [key: string]: unknown } = {};
+  const visit = (node: CypherNode) => {
     if (!node) return;
     if (typeof node === "string") {
       append(node);
@@ -65,10 +70,14 @@ export const generateCypher = (...root: TextNode[]) => {
         node.identifier = "v" + genIdCount++;
       }
       append(node.identifier);
+    } else if (node.type === "parameter") {
+      parameters[node.parameter] = node.value;
+      append("$");
+      append(node.parameter);
     }
   };
   visit(root);
-  return strings.join();
+  return { text: strings.join(), parameters };
 };
 
 type QueryNode = { [key: string]: QueryNode };
@@ -76,10 +85,6 @@ type QueryNode = { [key: string]: QueryNode };
 type EntityVar = {
   kind: string;
   var: Identifier;
-};
-
-const error = (msg: string): never => {
-  throw new Error(msg);
 };
 
 const requireEntity = (graph: Graph, kind: string): NodeDef | RelDef => {
@@ -104,7 +109,7 @@ const requireRef = (lbl: string, def: NodeDef, k: string) => {
   return member as Reference;
 };
 
-export const queryText = (query: QueryNode, graph: Graph, node: EntityVar, rel?: EntityVar): TextNode => {
+export const queryText = (query: QueryNode, graph: Graph, node: EntityVar, rel?: EntityVar): CypherNode => {
   const nodeDef = requireNode(graph, node.kind);
   const relDef = rel && requireRelationship(graph, rel.kind);
   const entries: { [key: string]: MapEntry } = {};

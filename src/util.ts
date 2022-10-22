@@ -72,6 +72,6 @@ export type SameKeys<A, B> = {
   [K in keyof A]: K extends keyof B ? B[K] : never;
 } & B;
 
-const isSymbol = (value: any): value is Symbol => {
-  return Object.getPrototypeOf(value) === Symbol;
+export const error = (msg: string): never => {
+  throw new Error(msg);
 };

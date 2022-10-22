@@ -1,12 +1,14 @@
 import { Date, DateTime, Duration, LocalDateTime, LocalTime, Point } from "neo4j-driver";
-import { Identifier, TextNode } from "./cypher";
-import { Id, CreateNode, UpdateNode, CreateRelationship, UpdateRelationship } from "./transaction";
-import { capitalize, Flatten1, Flatten2, PascalizeKeys, SameKeys } from "./util";
+import { Selection, SelectionDef } from "./select";
+import { CreateNode, CreateRelationship, UpdateNode, UpdateRelationship } from "./update";
+import { capitalize, Flatten1, Flatten2, PascalizeKeys } from "./util";
+
+export type Id = { id?: number } | number;
 
 export type Graph<G extends GraphDef = GraphDef> = {
   definition: G;
-  query: {
-    [L in keyof G as LabelKey<G, L>]: <Q extends QueryDef<Q, G, L>>(def: Q) => Query<G, L, Q>;
+  select: {
+    [L in keyof G as LabelKey<G, L>]: <Q extends SelectionDef<Q, G, L>>(def: Q) => Selection<G, L, Q>;
   };
   create: {
     [L in keyof G as LabelKey<G, L>]: (
@@ -23,15 +25,7 @@ export type Graph<G extends GraphDef = GraphDef> = {
   };
 };
 
-type Query<G extends GraphDef, L extends keyof G, Q extends QueryDef<Q, G, L>> = {
-  graphDefinition: G;
-  label: L;
-  definition: Q;
-  apply: (n: Identifier) => TextNode;
-  example: () => QueryResultNode<G, L, null, Q>;
-};
-
-type GraphDef = {
+export type GraphDef = {
   [K: string]: NodeDef | RelDef;
 };
 
@@ -53,14 +47,18 @@ type RelMembers = {
   [K: string]: Property;
 };
 
-type LabelKey<G extends GraphDef, L extends keyof G> = G[L]["type"] extends "node" ? L : never;
-type TypeKey<G extends GraphDef, T extends keyof G> = G[T]["type"] extends "relationship" ? T : never;
-type PropKey<M extends NodeMembers | RelMembers, K extends keyof M> = M[K]["type"] extends "property" ? K : never;
-type RefKey<M extends NodeMembers | RelMembers, K extends keyof M> = M[K]["type"] extends "reference" ? K : never;
-type GraphLabel<G extends GraphDef> = keyof { [K in keyof G as LabelKey<G, K>]: 0 };
-type GraphType<G extends GraphDef> = keyof { [K in keyof G as TypeKey<G, K>]: 0 };
-type EntityProp<M extends NodeMembers | RelMembers> = keyof { [K in keyof M as PropKey<M, K>]: 0 };
-type EntityRef<M extends NodeMembers | RelMembers> = keyof { [K in keyof M as RefKey<M, K>]: 0 };
+export type LabelKey<G extends GraphDef, L extends keyof G> = G[L]["type"] extends "node" ? L : never;
+export type TypeKey<G extends GraphDef, T extends keyof G> = G[T]["type"] extends "relationship" ? T : never;
+export type PropKey<M extends NodeMembers | RelMembers, K extends keyof M> = M[K]["type"] extends "property"
+  ? K
+  : never;
+export type RefKey<M extends NodeMembers | RelMembers, K extends keyof M> = M[K]["type"] extends "reference"
+  ? K
+  : never;
+export type GraphLabel<G extends GraphDef> = keyof { [K in keyof G as LabelKey<G, K>]: 0 };
+export type GraphType<G extends GraphDef> = keyof { [K in keyof G as TypeKey<G, K>]: 0 };
+export type EntityProp<M extends NodeMembers | RelMembers> = keyof { [K in keyof M as PropKey<M, K>]: 0 };
+export type EntityRef<M extends NodeMembers | RelMembers> = keyof { [K in keyof M as RefKey<M, K>]: 0 };
 
 const propTypeDefaults = {
   string: "" as string,
@@ -84,7 +82,7 @@ const propNullabilities = {
   "": false,
 } as const;
 
-type Property = {
+export type Property = {
   type: "property";
   propertyType: keyof typeof propTypeDefaults;
   nullable: boolean;
@@ -94,7 +92,10 @@ type Property = {
 
 type PropTypeStep1<T, A extends boolean> = A extends true ? T[] : T;
 type PropTypeStep2<T, N extends boolean> = N extends true ? null | T : T;
-type PropertyType<P extends Property> = PropTypeStep2<PropTypeStep1<P["defaultValue"], P["array"]>, P["nullable"]>;
+export type PropertyType<P extends Property> = PropTypeStep2<
+  PropTypeStep1<P["defaultValue"], P["array"]>,
+  P["nullable"]
+>;
 
 const multipilicities = {
   one: "single",
@@ -111,7 +112,7 @@ const directions = {
 type Direction = typeof directions[keyof typeof directions];
 type Multiplicity = typeof multipilicities[keyof typeof multipilicities];
 
-type WithMultiplicity<M extends Multiplicity, T> = M extends "single"
+export type WithMultiplicity<M extends Multiplicity, T> = M extends "single"
   ? T
   : M extends "many"
   ? T[]
@@ -156,65 +157,19 @@ type ReferenceFactories = {
   };
 };
 
-type NestedQueryDef<Q, G extends GraphDef, R extends Reference> = QueryDef<Q, G, R["label"]>;
-
-type QueryDef<Q, G extends GraphDef, L extends keyof G> = G[L]["type"] extends "node"
-  ? SameKeys<
-      Q,
-      {
-        [K in keyof G[L]["members"] as RefKey<G[L]["members"], K>]?: G[L]["members"][K] extends Reference
-          ? K extends keyof Q
-            ? NestedQueryDef<Q[K], G, G[L]["members"][K]>
-            : never
-          : never;
-      }
-    >
-  : never;
-
-type QueryResultKeys<G extends GraphDef, L extends keyof G, T extends keyof G | null, Q> =
-  | "id"
-  | (EntityRef<G[L]["members"]> & keyof Q)
-  | EntityProp<G[L]["members"]>
-  | (T extends keyof G ? keyof G[T]["members"] : T extends string ? "relationshipId" : never);
-
-type QueryResultNode<G extends GraphDef, L extends keyof G, T extends keyof G | null, Q> = {
-  [K in QueryResultKeys<G, L, T, Q>]: K extends keyof G[L]["members"]
-    ? G[L]["members"][K] extends Property
-      ? PropertyType<G[L]["members"][K]>
-      : G[L]["members"][K] extends Reference
-      ? K extends keyof Q
-        ? WithMultiplicity<
-            G[L]["members"][K]["multiplicity"],
-            QueryResultNode<G, G[L]["members"][K]["label"], G[L]["members"][K]["relationshipType"], Q[K]>
-          >
-        : never
-      : never
-    : T extends keyof G
-    ? K extends keyof G[T]["members"]
-      ? G[T]["members"][K] extends Property
-        ? PropertyType<G[T]["members"][K]>
-        : never
-      : never
-    : K extends "relationshipId"
-    ? number
-    : K extends "id"
-    ? number
-    : never;
-};
-
 type PropRecord<M extends NodeMembers | RelMembers> = {
   [P in keyof M as PropKey<M, P>]: M[P] extends Property ? PropertyType<M[P]> : never;
 };
 
-function node<M extends NodeMembers>(members: M): { type: "node"; members: M } {
+export function node<M extends NodeMembers>(members: M): { type: "node"; members: M } {
   return { type: "node", members };
 }
 
-function relationship<M extends RelMembers>(members: M): { type: "relationship"; members: M } {
+export function relationship<M extends RelMembers>(members: M): { type: "relationship"; members: M } {
   return { type: "relationship", members };
 }
 
-function propertyFactories(): PascalizeKeys<Flatten2<PropertyFactories>> {
+export function propertyFactories(): PascalizeKeys<Flatten2<PropertyFactories>> {
   const result = {} as any;
   for (const p in propTypeDefaults) {
     for (const c in propCardinalities) {
@@ -232,7 +187,7 @@ function propertyFactories(): PascalizeKeys<Flatten2<PropertyFactories>> {
   return result;
 }
 
-function referenceFactories(): PascalizeKeys<Flatten1<ReferenceFactories>> {
+export function referenceFactories(): PascalizeKeys<Flatten1<ReferenceFactories>> {
   const result = {} as any;
   for (const m in multipilicities) {
     for (const d in directions) {
@@ -248,14 +203,6 @@ function referenceFactories(): PascalizeKeys<Flatten1<ReferenceFactories>> {
   return result;
 }
 
-function graph<G extends GraphDef>(def: G): Graph<G> {
+export function graph<G extends GraphDef>(def: G): Graph<G> {
   return {} as any;
 }
-
-export default {
-  graph,
-  node,
-  relationship,
-  ...propertyFactories(),
-  ...referenceFactories(),
-};
