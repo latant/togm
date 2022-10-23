@@ -1,5 +1,6 @@
 import { Date, DateTime, Duration, LocalDateTime, LocalTime, Point } from "neo4j-driver";
-import { Selection, SelectionDef } from "./select";
+import { z, ZodType } from "zod";
+import { Selection, SelectionDef } from "./selection";
 import { CreateNode, CreateRelationship, UpdateNode, UpdateRelationship } from "./update";
 import { capitalize, Flatten1, Flatten2, PascalizeKeys } from "./util";
 
@@ -60,16 +61,16 @@ export type GraphType<G extends GraphDef> = keyof { [K in keyof G as TypeKey<G, 
 export type EntityProp<M extends NodeMembers | RelMembers> = keyof { [K in keyof M as PropKey<M, K>]: 0 };
 export type EntityRef<M extends NodeMembers | RelMembers> = keyof { [K in keyof M as RefKey<M, K>]: 0 };
 
-const propTypeDefaults = {
-  string: "" as string,
-  number: 0 as number,
-  boolean: true as boolean,
-  duration: new Duration<number>(0, 0, 0, 0),
-  localTime: new LocalTime<number>(0, 0, 0, 0),
-  date: new Date<number>(0, 0, 0),
-  localDateTime: new LocalDateTime<number>(0, 0, 0, 0, 0, 0, 0),
-  dateTime: new DateTime<number>(0, 0, 0, 0, 0, 0, 0, 0, "UTC"),
-  point: new Point<number>(0, 0, 0, 0),
+const propTypes = {
+  string: z.string(),
+  number: z.number(),
+  boolean: z.boolean(),
+  duration: z.custom<Duration<number>>((v) => v instanceof Duration),
+  localTime: z.custom<LocalTime<number>>((v) => v instanceof LocalTime),
+  date: z.custom<Date<number>>((v) => v instanceof Date),
+  localDateTime: z.custom<LocalDateTime<number>>((v) => v instanceof LocalDateTime),
+  dateTime: z.custom<DateTime<number>>((v) => v instanceof DateTime),
+  point: z.custom<Point<number>>((v) => v instanceof Point),
 };
 
 const propCardinalities = {
@@ -82,22 +83,18 @@ const propNullabilities = {
   "": false,
 } as const;
 
-export type Property = {
+export type Property<T = any, A extends boolean = boolean, N extends boolean = boolean> = {
   type: "property";
-  propertyType: keyof typeof propTypeDefaults;
-  nullable: boolean;
-  array: boolean;
-  defaultValue: any;
+  propertyType: keyof typeof propTypes;
+  nullable: N;
+  array: A;
+  zodType: ZodType<PropTypeStep2<PropTypeStep1<T, A>, N>>;
 };
 
 type PropTypeStep1<T, A extends boolean> = A extends true ? T[] : T;
 type PropTypeStep2<T, N extends boolean> = N extends true ? null | T : T;
-export type PropertyType<P extends Property> = PropTypeStep2<
-  PropTypeStep1<P["defaultValue"], P["array"]>,
-  P["nullable"]
->;
 
-const multipilicities = {
+const multiplicities = {
   one: "single",
   many: "many",
   opt: "optional",
@@ -110,7 +107,7 @@ const directions = {
 } as const;
 
 type Direction = typeof directions[keyof typeof directions];
-type Multiplicity = typeof multipilicities[keyof typeof multipilicities];
+type Multiplicity = typeof multiplicities[keyof typeof multiplicities];
 
 export type WithMultiplicity<M extends Multiplicity, T> = M extends "single"
   ? T
@@ -129,21 +126,21 @@ export type Reference = {
 };
 
 type PropertyFactories = {
-  [P in keyof typeof propTypeDefaults]: {
+  [P in keyof typeof propTypes]: {
     [C in keyof typeof propCardinalities]: {
-      [N in keyof typeof propNullabilities]: <D extends typeof propTypeDefaults[P]>() => {
-        type: "property";
-        propertyType: P;
-        array: typeof propCardinalities[C];
-        nullable: typeof propNullabilities[N];
-        defaultValue: unknown extends D ? typeof propTypeDefaults[P] : D;
-      };
+      [N in keyof typeof propNullabilities]: <T extends z.infer<typeof propTypes[P]>>(
+        type?: ZodType<T>
+      ) => Property<
+        unknown extends T ? z.infer<typeof propTypes[P]> : T,
+        typeof propCardinalities[C],
+        typeof propNullabilities[N]
+      >;
     };
   };
 };
 
 type ReferenceFactories = {
-  [M in keyof typeof multipilicities]: {
+  [M in keyof typeof multiplicities]: {
     [D in keyof typeof directions]: <T extends string, L extends string>(
       relationshipType: T,
       label: L
@@ -151,14 +148,24 @@ type ReferenceFactories = {
       type: "reference";
       relationshipType: T;
       label: L;
-      multiplicity: typeof multipilicities[M];
+      multiplicity: typeof multiplicities[M];
       direction: typeof directions[D];
     };
   };
 };
 
 type PropRecord<M extends NodeMembers | RelMembers> = {
-  [P in keyof M as PropKey<M, P>]: M[P] extends Property ? PropertyType<M[P]> : never;
+  [P in keyof M as PropKey<M, P>]: M[P] extends Property ? z.infer<M[P]["zodType"]> : never;
+};
+
+export const applyMultiplicity = (type: ZodType, multiplicity: Multiplicity): ZodType => {
+  if (multiplicity === "many") {
+    return type.array();
+  }
+  if (multiplicity === "optional") {
+    return type.nullable();
+  }
+  return type;
 };
 
 export function defineNode<M extends NodeMembers>(members: M): { type: "node"; members: M } {
@@ -171,16 +178,17 @@ export function defineRelationship<M extends RelMembers>(members: M): { type: "r
 
 export function propertyFactories(): PascalizeKeys<Flatten2<PropertyFactories>> {
   const result = {} as any;
-  for (const p in propTypeDefaults) {
+  for (const p in propTypes) {
     for (const c in propCardinalities) {
       for (const n in propNullabilities) {
-        result[`${p}${capitalize(c)}${capitalize(n)}`] = () => ({
-          type: "property",
-          propertyType: p,
-          array: propCardinalities[c],
-          nullable: propNullabilities[n],
-          defaultValue: propTypeDefaults[p],
-        });
+        result[`${p}${capitalize(c)}${capitalize(n)}`] = (type?: ZodType) => {
+          const array = propCardinalities[c];
+          const nullable = propNullabilities[n];
+          let zodType: ZodType = type ?? propTypes[p];
+          if (array) zodType = zodType.array();
+          if (nullable) zodType = zodType.nullable();
+          return { type: "property", propertyType: p, array, nullable, zodType };
+        };
       }
     }
   }
@@ -189,7 +197,7 @@ export function propertyFactories(): PascalizeKeys<Flatten2<PropertyFactories>> 
 
 export function referenceFactories(): PascalizeKeys<Flatten1<ReferenceFactories>> {
   const result = {} as any;
-  for (const m in multipilicities) {
+  for (const m in multiplicities) {
     for (const d in directions) {
       result[`${m}${capitalize(d)}`] = (relType: string, label: string) => ({
         type: "reference",
