@@ -1,6 +1,3 @@
-import { Graph, NodeDef, Reference, RelDef } from "./define";
-import { error } from "./util";
-
 export type Identifier = {
   type: "identifier";
   identifier?: string;
@@ -17,7 +14,7 @@ export type CypherNode =
   | false
   | null;
 
-type MapEntry = [CypherNode, CypherNode];
+export type MapEntry = [CypherNode, CypherNode];
 
 export const keyword = (keyword: string): CypherNode => ({ type: "keyword", keyword });
 export const identifier = (identifier?: string): Identifier => ({ type: "identifier", identifier });
@@ -69,7 +66,7 @@ export const generateQuery = (...root: CypherNode[]) => {
       if (!node.identifier) {
         node.identifier = "v" + genIdCount++;
       }
-      append(node.identifier);
+      append(`\`${node.identifier}\``);
     } else if (node.type === "parameter") {
       parameters[node.parameter] = node.value;
       append("$");
@@ -78,79 +75,4 @@ export const generateQuery = (...root: CypherNode[]) => {
   };
   visit(root);
   return { text: strings.join(), parameters };
-};
-
-type QueryNode = { [key: string]: QueryNode };
-
-type EntityVar = {
-  kind: string;
-  var: Identifier;
-};
-
-const requireEntity = (graph: Graph, kind: string): NodeDef | RelDef => {
-  return graph.definition[kind] ?? error(`Entity not found: ${kind}`);
-};
-
-const requireNode = (graph: Graph, label: string) => {
-  const entity = requireEntity(graph, label);
-  if (entity.type !== "node") error(`Entity not a node: ${label}`);
-  return entity as NodeDef;
-};
-
-const requireRelationship = (graph: Graph, type: string) => {
-  const entity = requireEntity(graph, type);
-  if (entity.type !== "relationship") error(`Entity not a relationship: ${type}`);
-  return entity as RelDef;
-};
-
-const requireRef = (lbl: string, def: NodeDef, k: string) => {
-  const member = def[k] ?? error(`Node member not found: ${lbl}.${k}`);
-  if (member.type !== "reference") error(`Member not reference: ${lbl}.${k}`);
-  return member as Reference;
-};
-
-export const queryText = (query: QueryNode, graph: Graph, node: EntityVar, rel?: EntityVar): CypherNode => {
-  const nodeDef = requireNode(graph, node.kind);
-  const relDef = rel && requireRelationship(graph, rel.kind);
-  const entries: { [key: string]: MapEntry } = {};
-  // refs > ids > nodeProps > relProps
-  if (relDef) {
-    for (const k in relDef.members) {
-      entries[k] = [identifier(k), [rel.var, ".", identifier(k)]];
-    }
-  }
-  for (const k in nodeDef.members) {
-    const member = nodeDef.members[k];
-    if (member.type === "property") {
-      entries[k] = [identifier(k), [node.var, ".", identifier(k)]];
-    }
-  }
-  entries["id"] = ["id", ["id(", node.var, ")"]];
-  if (rel) entries["relationshipId"] = ["relationshipId", ["id(", rel.var, ")"]];
-  for (const k in query) {
-    const ref = requireRef(node.kind, nodeDef, k);
-    const targetNode = identifier();
-    const targetRel = identifier();
-    entries[k] = [
-      identifier(k),
-      [
-        "[",
-        ["(", node.var, ")"],
-        ref.direction === "incoming" && "<",
-        ["-[:", targetRel, "]-"],
-        ref.direction === "outgoing" && ">",
-        ["(", targetNode, ":", ref.label, ")"],
-        "|",
-        queryText(
-          query[k],
-          graph,
-          { kind: ref.label, var: targetNode },
-          { kind: ref.relationshipType, var: targetRel }
-        ),
-        "]",
-        ref.multiplicity !== "many" && "[0]",
-      ],
-    ];
-  }
-  return { type: "map", map: Object.values(entries) };
 };

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { def } from "./togm";
 
 const graph = def.graph({
@@ -6,7 +7,7 @@ const graph = def.graph({
   }),
   User: def.node({
     email: def.string(),
-    roles: def.stringArrayOrNull<"USER" | "ADMIN">(),
+    roles: def.stringArrayOrNull(z.enum(["USER", "ADMIN"])),
     articles: def.manyOut("HAS_ARTICLE", "Article"),
   }),
   Article: def.node({
