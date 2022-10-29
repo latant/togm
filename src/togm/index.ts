@@ -1,4 +1,4 @@
-import { defineGraph, defineNode, defineRelationship, propertyFactories, referenceFactories } from "./define";
+import { defineGraph, defineNode, defineRelationship, propertyFactories, referenceFactories } from "./definition";
 
 export const def = {
   graph: defineGraph,

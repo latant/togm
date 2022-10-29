@@ -1,17 +1,14 @@
 import { Date, DateTime, Duration, LocalDateTime, LocalTime } from "neo4j-driver";
 import { z } from "zod";
-import { NodeDef, Property, PropKey } from "./define";
+import { NodeDef, Property, PropKey } from "./definition";
 
-type Condition<D extends NodeDef> = {
-  [K in keyof D["members"] as PropKey<D["members"], K>]: D["members"][K] extends Property
-    ? PropCondiiton<z.infer<D["members"][K]["zodType"]>>
+export type Condition<N extends NodeDef> = {
+  [K in keyof N["members"] as PropKey<N["members"], K>]?: N["members"][K] extends Property
+    ? PropCondition<z.infer<N["members"][K]["zodType"]>>
     : never;
-} & {
-  $id?: number;
-  $ids?: number[];
-};
+} & { $id?: number | number[] };
 
-type PropCondiiton<T> = { "="?: T } & (T extends string | null ? StringCondition : {}) &
+type PropCondition<T> = { "="?: T } & (T extends string | null ? StringCondition : {}) &
   (T extends NumericType | null ? NumericCondition<T> : {});
 
 type NumericType = number | Duration | LocalTime | Date | LocalDateTime | DateTime;
@@ -28,3 +25,5 @@ type NumericCondition<T> = {
   "<="?: NonNullable<T>;
   ">="?: NonNullable<T>;
 };
+
+export const condition = (node: NodeDef, root: Condition<NodeDef>) => {};

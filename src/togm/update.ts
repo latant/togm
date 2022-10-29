@@ -1,6 +1,6 @@
 import { Transaction } from "neo4j-driver";
 import { AS, CREATE, identifier, MATCH, parameter, RETURN, SET, UNWIND, WHERE } from "./cypher";
-import { Id } from "./define";
+import { Id } from "./definition";
 import { getTransaction, runQuery } from "./transaction";
 import { error } from "./util";
 

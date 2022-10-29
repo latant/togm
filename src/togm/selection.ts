@@ -11,16 +11,27 @@ import {
   RelDef,
   WithMultiplicity,
   applyMultiplicity,
-} from "./define";
-import { NodeExpressionProvider } from "./read";
+} from "./definition";
+import { MatchProvider, NodeExpressionProvider } from "./read";
 import { error, SameKeys } from "./util";
 import { z, ZodType } from "zod";
+import { Transaction } from "neo4j-driver";
+import { Condition } from "./condition";
 
-export type Selection<G extends GraphDef, L extends keyof G, Q extends SelectionDef<Q, G, L>> = {
-  graphDefinition: G;
-  label: L;
-  definition: Q;
-} & NodeExpressionProvider<ZodType<SelectionResultNode<G, L, null, Q>>>;
+export type Selection<G extends GraphDef, L extends keyof G, Q extends SelectionDef<Q, G, L>> = SelectionImpl<
+  SelectionResultNode<G, L, null, Q>,
+  G[L] extends NodeDef ? G[L] : never
+>;
+
+type SelectionImpl<T, N extends NodeDef> = {
+  graphDefinition: GraphDef;
+  label: string;
+  root: SelectionNode;
+  match: (p: MatchProvider, t?: Transaction) => Promise<T[]>;
+  matchOne: (p: MatchProvider, t?: Transaction) => Promise<T | undefined>;
+  find: (f: Condition<N>, t?: Transaction) => Promise<T[]>;
+  findOne: (f: Condition<N>, t?: Transaction) => Promise<T | undefined>;
+} & NodeExpressionProvider<ZodType<T>>;
 
 type NestedSelectionDef<Q, G extends GraphDef, R extends Reference> = SelectionDef<Q, G, R["label"]>;
 
@@ -172,3 +183,5 @@ export const selectionCypher = (query: SelectionNode, graph: Graph, node: Entity
   }
   return { type: "map", map: Object.values(entries) };
 };
+
+export const selection = (root: SelectionNode, graph: Graph, label: string) => {};

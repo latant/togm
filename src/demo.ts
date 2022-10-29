@@ -23,7 +23,10 @@ const q = graph.select.Article({
   },
 });
 
-graph.select.Article({});
+async function main() {
+  const result = await graph.select.Article({ author: { articles: {} } }).findOne({ $id: 9 });
+  result?.author.articles[0].$id;
+}
 
 graph.create.Article({
   title: "",

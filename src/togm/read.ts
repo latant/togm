@@ -8,9 +8,9 @@ export type MatchProvider = {
   cypher: (n: Identifier) => CypherNode;
 };
 
-export type ExpressionProvider<R extends ZodType> = {
+export type ExpressionProvider<T extends ZodType> = {
   cypher: (n: Identifier) => CypherNode;
-  type: z.infer<R>;
+  type: T;
 };
 
 export type NodeExpressionProvider<R extends ZodType> = {
