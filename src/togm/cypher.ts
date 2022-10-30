@@ -6,7 +6,7 @@ export type Identifier = {
 export type CypherNode =
   | { type: "map"; map: MapEntry[] }
   | { type: "keyword"; keyword: string }
-  | { type: "parameter"; parameter: string; value: unknown }
+  | { type: "parameter"; parameter: Identifier; value: unknown }
   | Identifier
   | CypherNode[]
   | string
@@ -18,7 +18,11 @@ export type MapEntry = [CypherNode, CypherNode];
 
 export const keyword = (keyword: string): CypherNode => ({ type: "keyword", keyword });
 export const identifier = (identifier?: string): Identifier => ({ type: "identifier", identifier });
-export const parameter = (parameter: string, value: unknown): CypherNode => ({ type: "parameter", parameter, value });
+export const parameter = (parameter: string | undefined, value?: unknown): CypherNode => ({
+  type: "parameter",
+  parameter: identifier(parameter),
+  value,
+});
 
 export const CREATE = keyword("CREATE");
 export const RETURN = keyword("RETURN");
@@ -27,7 +31,10 @@ export const UNWIND = keyword("UNWIND");
 export const MATCH = keyword("MATCH");
 export const WHERE = keyword("WHERE");
 export const SET = keyword("SET");
+export const AND = keyword("AND");
 export const AS = keyword("AS");
+export const IN = keyword("IN");
+export const OR = keyword("OR");
 
 export const generateQuery = (...root: CypherNode[]) => {
   const strings: string[] = [];
@@ -42,6 +49,12 @@ export const generateQuery = (...root: CypherNode[]) => {
     visit(k);
     append(":");
     visit(v);
+  };
+  const handleIdentifier = (node: Identifier) => {
+    if (!node.identifier) {
+      node.identifier = "v" + genIdCount++;
+    }
+    return node.identifier;
   };
   const parameters: { [key: string]: unknown } = {};
   const visit = (node: CypherNode) => {
@@ -63,14 +76,11 @@ export const generateQuery = (...root: CypherNode[]) => {
       appendMapEntry(node.map[node.map.length - 1]);
       append("}");
     } else if (node.type === "identifier") {
-      if (!node.identifier) {
-        node.identifier = "v" + genIdCount++;
-      }
-      append(`\`${node.identifier}\``);
+      append(`\`${handleIdentifier(node)}\``);
     } else if (node.type === "parameter") {
-      parameters[node.parameter] = node.value;
-      append("$");
-      append(node.parameter);
+      const name = handleIdentifier(node.parameter);
+      parameters[name] = node.value;
+      append(`$\`${name}\``);
     }
   };
   visit(root);

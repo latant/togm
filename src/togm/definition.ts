@@ -1,6 +1,6 @@
 import { Date, DateTime, Duration, LocalDateTime, LocalTime, Point } from "neo4j-driver";
 import { z, ZodType } from "zod";
-import { Selection, SelectionDef } from "./selection";
+import { selection, Selection, SelectionDef } from "./selection";
 import { CreateNode, CreateRelationship, UpdateNode, UpdateRelationship } from "./update";
 import { capitalize, Flatten1, Flatten2, PascalizeKeys } from "./util";
 
@@ -20,9 +20,9 @@ export type Graph<G extends GraphDef = GraphDef> = {
     [T in keyof G as TypeKey<G, T>]: (start: Id, end: Id, props: PropRecord<G[T]["members"]>) => CreateRelationship;
   };
   update: {
-    [L in keyof G as LabelKey<G, L>]: (id: number, props: Partial<PropRecord<G[L]["members"]>>) => UpdateNode;
+    [L in keyof G as LabelKey<G, L>]: (id: Id, props: Partial<PropRecord<G[L]["members"]>>) => UpdateNode;
   } & {
-    [T in keyof G as TypeKey<G, T>]: (id: number, props: Partial<PropRecord<G[T]["members"]>>) => UpdateRelationship;
+    [T in keyof G as TypeKey<G, T>]: (id: Id, props: Partial<PropRecord<G[T]["members"]>>) => UpdateRelationship;
   };
 };
 
@@ -168,15 +168,15 @@ export const applyMultiplicity = (type: ZodType, multiplicity: Multiplicity): Zo
   return type;
 };
 
-export function defineNode<M extends NodeMembers>(members: M): { type: "node"; members: M } {
+export const defineNode = <M extends NodeMembers>(members: M): { type: "node"; members: M } => {
   return { type: "node", members };
-}
+};
 
-export function defineRelationship<M extends RelMembers>(members: M): { type: "relationship"; members: M } {
+export const defineRelationship = <M extends RelMembers>(members: M): { type: "relationship"; members: M } => {
   return { type: "relationship", members };
-}
+};
 
-export function propertyFactories(): PascalizeKeys<Flatten2<PropertyFactories>> {
+export const propertyFactories = (): PascalizeKeys<Flatten2<PropertyFactories>> => {
   const result = {} as any;
   for (const p in propTypes) {
     for (const c in propCardinalities) {
@@ -193,9 +193,9 @@ export function propertyFactories(): PascalizeKeys<Flatten2<PropertyFactories>> 
     }
   }
   return result;
-}
+};
 
-export function referenceFactories(): PascalizeKeys<Flatten1<ReferenceFactories>> {
+export const referenceFactories = (): PascalizeKeys<Flatten1<ReferenceFactories>> => {
   const result = {} as any;
   for (const m in multiplicities) {
     for (const d in directions) {
@@ -209,8 +209,66 @@ export function referenceFactories(): PascalizeKeys<Flatten1<ReferenceFactories>
     }
   }
   return result;
-}
+};
 
-export function defineGraph<G extends GraphDef>(def: G): Graph<G> {
-  return {} as any;
-}
+export const defineGraph = <G extends GraphDef>(def: G): Graph<G> => {
+  const result: Graph<G> = {
+    definition: def,
+    create: {} as Graph<G>["create"],
+    update: {} as Graph<G>["update"],
+    select: {} as Graph<G>["select"],
+  };
+  for (const k in Object.keys(def)) {
+    const e = def[k];
+    const zodType = propsZodType(e.members);
+    if (e.type === "node") {
+      result.create[k] = (props: any, opts?: { additionalLabels?: string[] }): CreateNode => {
+        const labels = new Set<string>(opts?.additionalLabels ?? []);
+        labels.add(k);
+        return {
+          type: "createNode",
+          labels: [...labels],
+          properties: zodType.parse(props),
+        };
+      };
+      result.update[k] = (id: Id, props: any): UpdateNode => {
+        return {
+          type: "updateNode",
+          node: id,
+          properties: zodType.partial().parse(props),
+        };
+      };
+      result.select[k] = (selDef: any) => selection(selDef, result, k);
+    }
+    if (e.type === "relationship") {
+      result.create[k] = (start: Id, end: Id, props: any): CreateRelationship => {
+        return {
+          type: "createRelationship",
+          relationshipType: k,
+          start: start,
+          end: end,
+          properties: zodType.parse(props),
+        };
+      };
+      result.update[k] = (id: Id, props: any): UpdateRelationship => {
+        return {
+          type: "updateRelationship",
+          relationship: id,
+          properties: zodType.partial().parse(props),
+        };
+      };
+    }
+  }
+  return result;
+};
+
+const propsZodType = (members: NodeMembers | RelMembers) => {
+  const fields: { [key: string]: ZodType } = {};
+  for (const k in members) {
+    const m = members[k];
+    if (m.type === "property") {
+      fields[k] = m.zodType;
+    }
+  }
+  return z.object(fields);
+};

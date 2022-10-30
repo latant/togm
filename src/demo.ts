@@ -134,13 +134,17 @@ const globalvetGraph = def.graph({
   PetOwnerAddress: def.node({}),
 });
 
-const x = globalvetGraph.select.Clinic({
-  organization: {
-    country: {},
-    clinics: {
-      organization: {},
+const x = globalvetGraph.select
+  .Clinic({
+    organization: {
+      country: {},
+      clinics: {
+        organization: {},
+      },
     },
-  },
-});
+  })
+  .findOne({
+    $id: 3,
+  });
 
 type X = typeof x;

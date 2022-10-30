@@ -62,9 +62,9 @@ export type PascalizeKeys<T> = {
   [K in keyof T as Pascalize<K>]: T[K];
 };
 
-export function capitalize(str: any) {
+export const capitalize = (str: any) => {
   return str.charAt(0).toUpperCase() + str.slice(1);
-}
+};
 
 // REST
 

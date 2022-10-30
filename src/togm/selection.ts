@@ -1,5 +1,9 @@
+import { Transaction } from "neo4j-driver";
+import { z, ZodType } from "zod";
+import { Condition, nodeMatchProvider } from "./condition";
 import { CypherNode, identifier, Identifier, MapEntry } from "./cypher";
 import {
+  applyMultiplicity,
   EntityProp,
   EntityRef,
   Graph,
@@ -10,13 +14,10 @@ import {
   RefKey,
   RelDef,
   WithMultiplicity,
-  applyMultiplicity,
 } from "./definition";
-import { MatchProvider, NodeExpressionProvider } from "./read";
+import { MatchProvider, NodeExpressionProvider, runReadQuery } from "./read";
+import { runQuery } from "./transaction";
 import { error, SameKeys } from "./util";
-import { z, ZodType } from "zod";
-import { Transaction } from "neo4j-driver";
-import { Condition } from "./condition";
 
 export type Selection<G extends GraphDef, L extends keyof G, Q extends SelectionDef<Q, G, L>> = SelectionImpl<
   SelectionResultNode<G, L, null, Q>,
@@ -166,9 +167,9 @@ export const selectionCypher = (query: SelectionNode, graph: Graph, node: Entity
         "[",
         ["(", node.var, ")"],
         ref.direction === "incoming" && "<",
-        ["-[:", targetRel, "]-"],
+        ["-[", targetRel, ":", identifier(ref.relationshipType), "]-"],
         ref.direction === "outgoing" && ">",
-        ["(", targetNode, ":", ref.label, ")"],
+        ["(", targetNode, ":", identifier(ref.label), ")"],
         "|",
         selectionCypher(
           query[k],
@@ -184,4 +185,28 @@ export const selectionCypher = (query: SelectionNode, graph: Graph, node: Entity
   return { type: "map", map: Object.values(entries) };
 };
 
-export const selection = (root: SelectionNode, graph: Graph, label: string) => {};
+export const selection = (root: SelectionNode, graph: Graph, label: string): SelectionImpl<any, any> => {
+  const exp: NodeExpressionProvider<any> = {
+    labels: [label],
+    cypher(n) {
+      return selectionCypher(root, graph, { kind: label, var: n });
+    },
+    type: selectionType(root, graph, label),
+  };
+  return {
+    ...exp,
+    graphDefinition: graph.definition,
+    label,
+    root,
+    match: async (p, t) => runReadQuery(p, exp, t),
+    matchOne: async (p, t) => {
+      const result = await runReadQuery(p, exp, t);
+      return result[0];
+    },
+    find: async (c, t) => runReadQuery(nodeMatchProvider(label, graph[label], c), exp, t),
+    findOne: async (c, t) => {
+      const result = await runReadQuery(nodeMatchProvider(label, graph[label], c), exp, t);
+      return result[0];
+    },
+  };
+};
