@@ -1,5 +1,5 @@
 import { Date, DateTime, Duration, LocalDateTime, LocalTime, Point } from "neo4j-driver";
-import { z, ZodType } from "zod";
+import { TypeOf, z, ZodType } from "zod";
 import { selection, Selection, SelectionDef } from "./selection";
 import { CreateNode, CreateRelationship, UpdateNode, UpdateRelationship } from "./update";
 import { capitalize, Flatten1, Flatten2, PascalizeKeys } from "./util";
@@ -182,9 +182,9 @@ export const propertyFactories = (): PascalizeKeys<Flatten2<PropertyFactories>> 
     for (const c in propCardinalities) {
       for (const n in propNullabilities) {
         result[`${p}${capitalize(c)}${capitalize(n)}`] = (type?: ZodType) => {
-          const array = propCardinalities[c];
-          const nullable = propNullabilities[n];
-          let zodType: ZodType = type ?? propTypes[p];
+          const array = propCardinalities[c as keyof typeof propCardinalities];
+          const nullable = propNullabilities[n as keyof typeof propNullabilities];
+          let zodType: ZodType = type ?? propTypes[p as keyof typeof propTypes];
           if (array) zodType = zodType.array();
           if (nullable) zodType = zodType.nullable();
           return { type: "property", propertyType: p, array, nullable, zodType };
@@ -218,11 +218,11 @@ export const defineGraph = <G extends GraphDef>(def: G): Graph<G> => {
     update: {} as Graph<G>["update"],
     select: {} as Graph<G>["select"],
   };
-  for (const k in Object.keys(def)) {
+  for (const k in def) {
     const e = def[k];
     const zodType = propsZodType(e.members);
     if (e.type === "node") {
-      result.create[k] = (props: any, opts?: { additionalLabels?: string[] }): CreateNode => {
+      (result.create as any)[k] = (props: any, opts?: { additionalLabels?: string[] }): CreateNode => {
         const labels = new Set<string>(opts?.additionalLabels ?? []);
         labels.add(k);
         return {
@@ -231,17 +231,17 @@ export const defineGraph = <G extends GraphDef>(def: G): Graph<G> => {
           properties: zodType.parse(props),
         };
       };
-      result.update[k] = (id: Id, props: any): UpdateNode => {
+      (result.update as any)[k] = (id: Id, props: any): UpdateNode => {
         return {
           type: "updateNode",
           node: id,
           properties: zodType.partial().parse(props),
         };
       };
-      result.select[k] = (selDef: any) => selection(selDef, result, k);
+      (result.select as any)[k] = (selDef: any) => selection(selDef, result, k);
     }
     if (e.type === "relationship") {
-      result.create[k] = (start: Id, end: Id, props: any): CreateRelationship => {
+      (result.create as any)[k] = (start: Id, end: Id, props: any): CreateRelationship => {
         return {
           type: "createRelationship",
           relationshipType: k,
@@ -250,7 +250,7 @@ export const defineGraph = <G extends GraphDef>(def: G): Graph<G> => {
           properties: zodType.parse(props),
         };
       };
-      result.update[k] = (id: Id, props: any): UpdateRelationship => {
+      (result.update as any)[k] = (id: Id, props: any): UpdateRelationship => {
         return {
           type: "updateRelationship",
           relationship: id,

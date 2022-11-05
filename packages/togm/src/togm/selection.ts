@@ -103,7 +103,7 @@ const requireRelationship = (graph: Graph, type: string) => {
 };
 
 const requireRef = (lbl: string, def: NodeDef, k: string) => {
-  const member = def[k] ?? error(`Node member not found: ${lbl}.${k}`);
+  const member = (def as any)[k] ?? error(`Node member not found: ${lbl}.${k}`);
   if (member.type !== "reference") error(`Member not reference: ${lbl}.${k}`);
   return member as Reference;
 };
@@ -157,7 +157,7 @@ export const selectionCypher = (query: SelectionNode, graph: Graph, node: Entity
   entries["$id"] = [identifier("$id"), ["id(", node.var, ")"]];
   if (rel) entries["$rid"] = [identifier("$rid"), ["id(", rel.var, ")"]];
   for (const k in query) {
-    const ref = nodeDef[k] as Reference;
+    const ref = (nodeDef as any)[k] as Reference;
     const targetNode = identifier();
     const targetRel = identifier();
     entries[k] = [
@@ -202,9 +202,9 @@ export const selection = (root: SelectionNode, graph: Graph, label: string): Sel
       const result = await runReadQuery(p, exp, t);
       return result[0];
     },
-    find: async (c, t) => runReadQuery(nodeMatchProvider(label, graph[label], c), exp, t),
+    find: async (c, t) => runReadQuery(nodeMatchProvider(label, (graph as any)[label], c), exp, t),
     findOne: async (c, t) => {
-      const result = await runReadQuery(nodeMatchProvider(label, graph[label], c), exp, t);
+      const result = await runReadQuery(nodeMatchProvider(label, (graph as any)[label], c), exp, t);
       return result[0];
     },
   };
