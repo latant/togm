@@ -16,7 +16,6 @@ import {
   WithMultiplicity,
 } from "./definition";
 import { MatchProvider, NodeExpressionProvider, runReadQuery } from "./read";
-import { runQuery } from "./transaction";
 import { error, SameKeys } from "./util";
 
 export type Selection<G extends GraphDef, L extends keyof G, Q extends SelectionDef<Q, G, L>> = SelectionImpl<

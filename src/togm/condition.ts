@@ -1,6 +1,21 @@
 import { Date, DateTime, Duration, LocalDateTime, LocalTime } from "neo4j-driver";
 import { z } from "zod";
-import { AND, CypherNode, identifier, Identifier, IN, MATCH, OR, parameter, WHERE } from "./cypher";
+import {
+  AND,
+  CONTAINS,
+  CypherNode,
+  ENDS,
+  identifier,
+  Identifier,
+  IN,
+  MATCH,
+  NOT,
+  OR,
+  parameter,
+  STARTS,
+  WHERE,
+  WITH,
+} from "./cypher";
 import { NodeDef, Property, PropKey } from "./definition";
 import { MatchProvider } from "./read";
 
@@ -32,9 +47,20 @@ type NumericCondition<T> = {
   ">="?: NonNullable<T>;
 };
 
-type All<T> = T & { $any?: Any<T> };
-type Any<T> = T & { $all?: All<T> };
+type All<T> = T & { $any?: Any<T>; $not?: All<T> };
+type Any<T> = T & { $all?: All<T>; $not?: All<T> };
 type Op = "any" | "all";
+
+const propCondOps = {
+  "=": "=",
+  "<": "<",
+  ">": ">",
+  "<=": "<=",
+  ">=": ">=",
+  contains: CONTAINS,
+  startsWith: [STARTS, WITH],
+  ensWith: [ENDS, WITH],
+};
 
 export const nodeMatchProvider = (lbl: string, node: NodeDef, cond: ConditionImpl): MatchProvider => {
   return {
@@ -57,6 +83,8 @@ const nodeConditionCypher = (node: NodeDef, cond: ConditionImpl, n: Identifier, 
       result.push(nodeConditionCypher(node, cond[k], n, "any"));
     } else if (k === "$all") {
       result.push(nodeConditionCypher(node, cond[k], n, "all"));
+    } else if (k === "$not") {
+      result.push(["(", NOT, nodeConditionCypher(node, cond[k], n, "all"), ")"]);
     }
   }
   return joinOp(op, result);
@@ -69,8 +97,10 @@ const propConditionCypher = (prop: string, cond: PropConditionImpl, n: Identifie
       result.push(propConditionCypher(prop, cond[k], n, "any"));
     } else if (k === "$all") {
       result.push(propConditionCypher(prop, cond[k], n, "all"));
+    } else if (k === "$not") {
+      result.push(["(", NOT, propConditionCypher(prop, cond[k], n, "all"), ")"]);
     } else {
-      result.push([n, ".", identifier(prop), ` ${k} `, parameter(undefined, cond[k])]);
+      result.push([n, ".", identifier(prop), propCondOps[k], parameter(undefined, cond[k])]);
     }
   }
   return joinOp(op, result);

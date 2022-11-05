@@ -1,39 +1,4 @@
-import { z } from "zod";
 import { def } from "./togm";
-
-const graph = def.graph({
-  HAS_ARTICLE: def.relationship({
-    name: def.string(),
-  }),
-  User: def.node({
-    email: def.string(),
-    roles: def.stringArrayOrNull(z.enum(["USER", "ADMIN"])),
-    articles: def.manyOut("HAS_ARTICLE", "Article"),
-  }),
-  Article: def.node({
-    title: def.string(),
-    isbn: def.numberOrNull(),
-    author: def.oneIn("HAS_ARTICLE", "User"),
-  }),
-});
-
-const q = graph.select.Article({
-  author: {
-    articles: {},
-  },
-});
-
-async function main() {
-  const result = await graph.select.Article({ author: { articles: {} } }).findOne({ $id: 9 });
-  result?.author.articles[0].$id;
-}
-
-graph.create.Article({
-  title: "",
-  isbn: null,
-});
-
-graph.update.Article(0, { isbn: null });
 
 const globalvetGraph = def.graph({
   User: def.node({
@@ -134,17 +99,24 @@ const globalvetGraph = def.graph({
   PetOwnerAddress: def.node({}),
 });
 
-const x = globalvetGraph.select
-  .Clinic({
+async function main() {
+  const selectClinic = globalvetGraph.select.Clinic({
     organization: {
       country: {},
       clinics: {
         organization: {},
       },
     },
-  })
-  .findOne({
-    $id: 3,
   });
-
-type X = typeof x;
+  const c = await selectClinic.findOne({
+    $id: 3,
+    $not: {
+      $any: {
+        $not: {
+          $any: {},
+        },
+      },
+    },
+  });
+  c?.organization.country.$rid;
+}

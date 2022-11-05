@@ -24,14 +24,19 @@ export const parameter = (parameter: string | undefined, value?: unknown): Cyphe
   value,
 });
 
+export const CONTAINS = keyword("CONTAINS");
+export const STARTS = keyword("STARTS");
 export const CREATE = keyword("CREATE");
 export const RETURN = keyword("RETURN");
 export const DELETE = keyword("DELETE");
 export const UNWIND = keyword("UNWIND");
 export const MATCH = keyword("MATCH");
 export const WHERE = keyword("WHERE");
+export const WITH = keyword("WITH");
+export const ENDS = keyword("ENDS");
 export const SET = keyword("SET");
 export const AND = keyword("AND");
+export const NOT = keyword("NOT");
 export const AS = keyword("AS");
 export const IN = keyword("IN");
 export const OR = keyword("OR");
