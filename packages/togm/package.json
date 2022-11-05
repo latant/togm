@@ -1,15 +1,16 @@
 {
   "name": "togm",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.0.0",
+  "author": "Antal Latinovits",
+  "license": "MIT",
+  "description": "Advanced, type-safe object-graph mapping for the Neo4j graph database",
+  "files": ["dist"],
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc --build",
     "start": "nodemon",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Antal Latinovits",
-  "license": "ISC",
   "devDependencies": {
     "@types/cls-hooked": "^4.3.3",
     "nodemon": "^2.0.19",
