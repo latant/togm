@@ -1,8 +1,7 @@
 import { Transaction } from "neo4j-driver";
-import { ZodType } from "zod";
+import { ZodType, z } from "zod";
 import { AS, CypherNode, identifier, Identifier, RETURN } from "./cypher";
 import { getTransaction, runQuery } from "./transaction";
-import { z } from "zod";
 
 export type MatchProvider = {
   cypher: (n: Identifier) => CypherNode;

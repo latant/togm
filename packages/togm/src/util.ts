@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // FLATTEN
 
 type IsFunction<T, R, Fallback = T> = T extends (...args: any[]) => any ? R : Fallback;
@@ -28,7 +29,7 @@ type FlattenStepTwo<T> = {
 type FlattenOneLevel<T> = FlattenStepTwo<FlattenStepOne<T>>;
 
 // {a: {b: 1, c: {d: 1}}} => {"a.b": 1, "a.b.c.d": 1}
-type Flatten<T> = T extends FlattenOneLevel<T> ? T : Flatten<FlattenOneLevel<T>>;
+// type Flatten<T> = T extends FlattenOneLevel<T> ? T : Flatten<FlattenOneLevel<T>>;
 
 export type Flatten1<T> = FlattenOneLevel<T>;
 export type Flatten2<T> = FlattenOneLevel<Flatten1<T>>;

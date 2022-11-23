@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Date, DateTime, Duration, LocalDateTime, LocalTime, Point } from "neo4j-driver";
 import { TypeOf, z, ZodType } from "zod";
 import { selection, Selection, SelectionDef } from "./selection";
@@ -74,8 +75,8 @@ const propTypes = {
 };
 
 const propCardinalities = {
-  array: true as true,
-  "": false as false,
+  array: true,
+  "": false,
 } as const;
 
 const propNullabilities = {

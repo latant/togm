@@ -8,7 +8,7 @@ const runSession = async <R>(driver: Driver, block: (session: Session) => Promis
   try {
     await block(session);
   } finally {
-    session.close();
+    await session.close();
   }
 };
 

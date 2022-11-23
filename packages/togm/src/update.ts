@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Transaction } from "neo4j-driver";
 import { AS, CREATE, identifier, MATCH, parameter, RETURN, SET, UNWIND, WHERE } from "./cypher";
 import { Id } from "./definition";

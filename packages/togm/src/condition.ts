@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-types */
 import { Date, DateTime, Duration, LocalDateTime, LocalTime } from "neo4j-driver";
 import { z } from "zod";
 import {
@@ -91,8 +92,8 @@ const nodeConditionCypher = (node: NodeDef, cond: any, n: Identifier, op: Op): C
 };
 
 const isPropCondKey = (key: string): key is keyof PropConditionImpl  => {
-  return true
-}  
+  return true;
+};  
 
 const propConditionCypher = (prop: string, cond: any, n: Identifier, op: Op): CypherNode => {
   const result: CypherNode[] = [];

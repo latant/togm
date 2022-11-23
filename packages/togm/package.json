@@ -5,7 +5,7 @@
   "license": "MIT",
   "description": "Advanced, type-safe object-graph mapping for the Neo4j graph database",
   "files": ["dist"],
-  "main": "dist/index.js",
+  "main": "dist/togm.js",
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
     "start": "nodemon",

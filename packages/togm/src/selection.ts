@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Transaction } from "neo4j-driver";
 import { z, ZodType } from "zod";
 import { Condition, nodeMatchProvider } from "./condition";
