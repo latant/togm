@@ -22,6 +22,9 @@ export const runReadQuery = async <R extends ZodType>(
   transaction: Transaction = getTransaction()
 ) => {
   const x = identifier();
-  const result = await runQuery([match.cypher(x), RETURN, value.cypher(x), AS, "result"], transaction);
+  const result = await runQuery(
+    [match.cypher(x), RETURN, value.cypher(x), AS, "result"],
+    transaction
+  );
   return result.records.map((r) => r.get("result")) as z.infer<R>[];
 };

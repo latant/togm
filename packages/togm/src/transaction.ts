@@ -14,7 +14,8 @@ const runSession = async <R>(driver: Driver, block: (session: Session) => Promis
 
 const transactionCLS = createNamespace("neo4j-transactions");
 
-export const getTransaction = () => transactionCLS.get("transaction") ?? (error("Not in a transaction") as Transaction);
+export const getTransaction = () =>
+  transactionCLS.get("transaction") ?? (error("Not in a transaction") as Transaction);
 
 type TransactionBlock<R> = (transaction: Transaction) => Promise<R>;
 

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Date, DateTime, Duration, LocalDateTime, LocalTime, Point } from "neo4j-driver";
-import { TypeOf, z, ZodType } from "zod";
+import { z, ZodType } from "zod";
 import { selection, Selection, SelectionDef } from "./selection";
 import { CreateNode, CreateRelationship, UpdateNode, UpdateRelationship } from "./update";
 import { capitalize, Flatten1, Flatten2, PascalizeKeys } from "./util";
@@ -10,7 +10,9 @@ export type Id = { id?: number } | number;
 export type Graph<G extends GraphDef = GraphDef> = {
   definition: G;
   select: {
-    [L in keyof G as LabelKey<G, L>]: <Q extends SelectionDef<Q, G, L>>(def: Q) => Selection<G, L, Q>;
+    [L in keyof G as LabelKey<G, L>]: <Q extends SelectionDef<Q, G, L>>(
+      def: Q
+    ) => Selection<G, L, Q>;
   };
   create: {
     [L in keyof G as LabelKey<G, L>]: (
@@ -18,12 +20,22 @@ export type Graph<G extends GraphDef = GraphDef> = {
       opts?: { additionalLabels: GraphLabel<G>[] }
     ) => CreateNode;
   } & {
-    [T in keyof G as TypeKey<G, T>]: (start: Id, end: Id, props: PropRecord<G[T]["members"]>) => CreateRelationship;
+    [T in keyof G as TypeKey<G, T>]: (
+      start: Id,
+      end: Id,
+      props: PropRecord<G[T]["members"]>
+    ) => CreateRelationship;
   };
   update: {
-    [L in keyof G as LabelKey<G, L>]: (id: Id, props: Partial<PropRecord<G[L]["members"]>>) => UpdateNode;
+    [L in keyof G as LabelKey<G, L>]: (
+      id: Id,
+      props: Partial<PropRecord<G[L]["members"]>>
+    ) => UpdateNode;
   } & {
-    [T in keyof G as TypeKey<G, T>]: (id: Id, props: Partial<PropRecord<G[T]["members"]>>) => UpdateRelationship;
+    [T in keyof G as TypeKey<G, T>]: (
+      id: Id,
+      props: Partial<PropRecord<G[T]["members"]>>
+    ) => UpdateRelationship;
   };
 };
 
@@ -49,18 +61,32 @@ type RelMembers = {
   [K: string]: Property;
 };
 
-export type LabelKey<G extends GraphDef, L extends keyof G> = G[L]["type"] extends "node" ? L : never;
-export type TypeKey<G extends GraphDef, T extends keyof G> = G[T]["type"] extends "relationship" ? T : never;
-export type PropKey<M extends NodeMembers | RelMembers, K extends keyof M> = M[K]["type"] extends "property"
-  ? K
+export type LabelKey<G extends GraphDef, L extends keyof G> = G[L]["type"] extends "node"
+  ? L
   : never;
-export type RefKey<M extends NodeMembers | RelMembers, K extends keyof M> = M[K]["type"] extends "reference"
-  ? K
+export type TypeKey<G extends GraphDef, T extends keyof G> = G[T]["type"] extends "relationship"
+  ? T
   : never;
-export type GraphLabel<G extends GraphDef> = keyof { [K in keyof G as LabelKey<G, K>]: 0 };
-export type GraphType<G extends GraphDef> = keyof { [K in keyof G as TypeKey<G, K>]: 0 };
-export type EntityProp<M extends NodeMembers | RelMembers> = keyof { [K in keyof M as PropKey<M, K>]: 0 };
-export type EntityRef<M extends NodeMembers | RelMembers> = keyof { [K in keyof M as RefKey<M, K>]: 0 };
+export type PropKey<
+  M extends NodeMembers | RelMembers,
+  K extends keyof M
+> = M[K]["type"] extends "property" ? K : never;
+export type RefKey<
+  M extends NodeMembers | RelMembers,
+  K extends keyof M
+> = M[K]["type"] extends "reference" ? K : never;
+export type GraphLabel<G extends GraphDef> = keyof {
+  [K in keyof G as LabelKey<G, K>]: 0;
+};
+export type GraphType<G extends GraphDef> = keyof {
+  [K in keyof G as TypeKey<G, K>]: 0;
+};
+export type EntityProp<M extends NodeMembers | RelMembers> = keyof {
+  [K in keyof M as PropKey<M, K>]: 0;
+};
+export type EntityRef<M extends NodeMembers | RelMembers> = keyof {
+  [K in keyof M as RefKey<M, K>]: 0;
+};
 
 const propTypes = {
   string: z.string(),
@@ -173,7 +199,9 @@ export const defineNode = <M extends NodeMembers>(members: M): { type: "node"; m
   return { type: "node", members };
 };
 
-export const defineRelationship = <M extends RelMembers>(members: M): { type: "relationship"; members: M } => {
+export const defineRelationship = <M extends RelMembers>(
+  members: M
+): { type: "relationship"; members: M } => {
   return { type: "relationship", members };
 };
 
@@ -188,7 +216,13 @@ export const propertyFactories = (): PascalizeKeys<Flatten2<PropertyFactories>> 
           let zodType: ZodType = type ?? propTypes[p as keyof typeof propTypes];
           if (array) zodType = zodType.array();
           if (nullable) zodType = zodType.nullable();
-          return { type: "property", propertyType: p, array, nullable, zodType };
+          return {
+            type: "property",
+            propertyType: p,
+            array,
+            nullable,
+            zodType,
+          };
         };
       }
     }
@@ -223,7 +257,10 @@ export const defineGraph = <G extends GraphDef>(def: G): Graph<G> => {
     const e = def[k];
     const zodType = propsZodType(e.members);
     if (e.type === "node") {
-      (result.create as any)[k] = (props: any, opts?: { additionalLabels?: string[] }): CreateNode => {
+      (result.create as any)[k] = (
+        props: any,
+        opts?: { additionalLabels?: string[] }
+      ): CreateNode => {
         const labels = new Set<string>(opts?.additionalLabels ?? []);
         labels.add(k);
         return {

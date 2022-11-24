@@ -14,15 +14,17 @@ type Value<T> = T[keyof T];
 
 // {a: {b: 1, c: 2}} => {"a.b": {b: 1, c: 2}, "a.c": {b: 1, c: 2}}
 type FlattenStepOne<T> = {
-  [K in keyof T as K extends string ? IsObject<T[K], `${K}.${keyof T[K] & string}`, K> : K]: IsObject<
-    T[K],
-    { [key in keyof T[K]]: T[K][key] }
-  >;
+  [K in keyof T as K extends string
+    ? IsObject<T[K], `${K}.${keyof T[K] & string}`, K>
+    : K]: IsObject<T[K], { [key in keyof T[K]]: T[K][key] }>;
 };
 
 // {"a.b": {b: 1, c: 2}, "a.c": {b: 1, c: 2}} => {"a.b": {b: 1}, "a.c": {c: 2}}
 type FlattenStepTwo<T> = {
-  [a in keyof T]: IsObject<T[a], Value<{ [M in keyof T[a] as M extends Tail<a> ? M : never]: T[a][M] }>>;
+  [a in keyof T]: IsObject<
+    T[a],
+    Value<{ [M in keyof T[a] as M extends Tail<a> ? M : never]: T[a][M] }>
+  >;
 };
 
 // {a: {b: 1, c: {d: 1}}} => {"a.b": 1, "a.c": {d: 1}}
@@ -36,7 +38,9 @@ export type Flatten2<T> = FlattenOneLevel<Flatten1<T>>;
 
 // STRINGS
 
-type Pascalize<S> = S extends `${infer A}.${infer B}` ? `${Pascalize<A>}${Capitalize<Pascalize<B>>}` : S;
+type Pascalize<S> = S extends `${infer A}.${infer B}`
+  ? `${Pascalize<A>}${Capitalize<Pascalize<B>>}`
+  : S;
 
 export type PascalizeKeys<T> = {
   [K in keyof T as Pascalize<K>]: T[K];

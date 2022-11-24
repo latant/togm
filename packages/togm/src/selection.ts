@@ -19,10 +19,11 @@ import {
 import { MatchProvider, NodeExpressionProvider, runReadQuery } from "./read";
 import { error, SameKeys } from "./util";
 
-export type Selection<G extends GraphDef, L extends keyof G, Q extends SelectionDef<Q, G, L>> = SelectionImpl<
-  SelectionResultNode<G, L, null, Q>,
-  G[L] extends NodeDef ? G[L] : never
->;
+export type Selection<
+  G extends GraphDef,
+  L extends keyof G,
+  Q extends SelectionDef<Q, G, L>
+> = SelectionImpl<SelectionResultNode<G, L, null, Q>, G[L] extends NodeDef ? G[L] : never>;
 
 type SelectionImpl<T, N extends NodeDef> = {
   graphDefinition: GraphDef;
@@ -34,13 +35,20 @@ type SelectionImpl<T, N extends NodeDef> = {
   findOne: (f: Condition<N>, t?: Transaction) => Promise<T | undefined>;
 } & NodeExpressionProvider<ZodType<T>>;
 
-type NestedSelectionDef<Q, G extends GraphDef, R extends Reference> = SelectionDef<Q, G, R["label"]>;
+type NestedSelectionDef<Q, G extends GraphDef, R extends Reference> = SelectionDef<
+  Q,
+  G,
+  R["label"]
+>;
 
 export type SelectionDef<Q, G extends GraphDef, L extends keyof G> = G[L]["type"] extends "node"
   ? SameKeys<
       Q,
       {
-        [K in keyof G[L]["members"] as RefKey<G[L]["members"], K>]?: G[L]["members"][K] extends Reference
+        [K in keyof G[L]["members"] as RefKey<
+          G[L]["members"],
+          K
+        >]?: G[L]["members"][K] extends Reference
           ? K extends keyof Q
             ? NestedSelectionDef<Q[K], G, G[L]["members"][K]>
             : never
@@ -63,7 +71,12 @@ type SelectionResultNode<G extends GraphDef, L extends keyof G, T extends keyof 
       ? K extends keyof Q
         ? WithMultiplicity<
             G[L]["members"][K]["multiplicity"],
-            SelectionResultNode<G, G[L]["members"][K]["label"], G[L]["members"][K]["relationshipType"], Q[K]>
+            SelectionResultNode<
+              G,
+              G[L]["members"][K]["label"],
+              G[L]["members"][K]["relationshipType"],
+              Q[K]
+            >
           >
         : never
       : never
@@ -140,7 +153,12 @@ export const selectionType = (
   return z.strictObject(fields).partial();
 };
 
-export const selectionCypher = (query: SelectionNode, graph: Graph, node: EntityVar, rel?: EntityVar): CypherNode => {
+export const selectionCypher = (
+  query: SelectionNode,
+  graph: Graph,
+  node: EntityVar,
+  rel?: EntityVar
+): CypherNode => {
   const nodeDef = graph.definition[node.kind] as NodeDef;
   const relDef = rel && (graph.definition[rel.kind] as RelDef);
   const entries: { [key: string]: MapEntry } = {};
@@ -185,7 +203,11 @@ export const selectionCypher = (query: SelectionNode, graph: Graph, node: Entity
   return { type: "map", map: Object.values(entries) };
 };
 
-export const selection = (root: SelectionNode, graph: Graph, label: string): SelectionImpl<any, any> => {
+export const selection = (
+  root: SelectionNode,
+  graph: Graph,
+  label: string
+): SelectionImpl<any, any> => {
   const exp: NodeExpressionProvider<any> = {
     labels: [label],
     cypher(n) {

@@ -63,7 +63,11 @@ const propCondOps = {
   ensWith: [ENDS, WITH],
 };
 
-export const nodeMatchProvider = (lbl: string, node: NodeDef, cond: ConditionImpl): MatchProvider => {
+export const nodeMatchProvider = (
+  lbl: string,
+  node: NodeDef,
+  cond: ConditionImpl
+): MatchProvider => {
   return {
     cypher(n) {
       const condCyp = nodeConditionCypher(node, cond, n, "all");
@@ -79,7 +83,14 @@ const nodeConditionCypher = (node: NodeDef, cond: any, n: Identifier, op: Op): C
     if (p?.type === "property") {
       result.push(propConditionCypher(k, cond[k], n, "all"));
     } else if (k === "$id") {
-      result.push(["(id(", n, ")", typeof cond[k] === "number" ? " = " : IN, parameter(undefined, cond[k]), ")"]);
+      result.push([
+        "(id(",
+        n,
+        ")",
+        typeof cond[k] === "number" ? " = " : IN,
+        parameter(undefined, cond[k]),
+        ")",
+      ]);
     } else if (k === "$any") {
       result.push(nodeConditionCypher(node, cond[k], n, "any"));
     } else if (k === "$all") {
@@ -91,9 +102,9 @@ const nodeConditionCypher = (node: NodeDef, cond: any, n: Identifier, op: Op): C
   return joinOp(op, result);
 };
 
-const isPropCondKey = (key: string): key is keyof PropConditionImpl  => {
+const isPropCondKey = (key: string): key is keyof PropConditionImpl => {
   return true;
-};  
+};
 
 const propConditionCypher = (prop: string, cond: any, n: Identifier, op: Op): CypherNode => {
   const result: CypherNode[] = [];
@@ -105,7 +116,13 @@ const propConditionCypher = (prop: string, cond: any, n: Identifier, op: Op): Cy
     } else if (k === "$not") {
       result.push(["(", NOT, propConditionCypher(prop, cond[k], n, "all"), ")"]);
     } else {
-      result.push([n, ".", identifier(prop), (propCondOps as any)[k], parameter(undefined, cond[k])]);
+      result.push([
+        n,
+        ".",
+        identifier(prop),
+        (propCondOps as any)[k],
+        parameter(undefined, cond[k]),
+      ]);
     }
   }
   return joinOp(op, result);

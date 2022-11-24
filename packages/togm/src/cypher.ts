@@ -16,8 +16,14 @@ export type CypherNode =
 
 export type MapEntry = [CypherNode, CypherNode];
 
-export const keyword = (keyword: string): CypherNode => ({ type: "keyword", keyword });
-export const identifier = (identifier?: string): Identifier => ({ type: "identifier", identifier });
+export const keyword = (keyword: string): CypherNode => ({
+  type: "keyword",
+  keyword,
+});
+export const identifier = (identifier?: string): Identifier => ({
+  type: "identifier",
+  identifier,
+});
 export const parameter = (parameter: string | undefined, value?: unknown): CypherNode => ({
   type: "parameter",
   parameter: identifier(parameter),

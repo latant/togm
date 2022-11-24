@@ -55,7 +55,10 @@ const filterCommands = <T extends Command["type"]>(commands: Command[], type: T)
   return commands.filter((c) => c.type === type) as (Command & { type: T })[];
 };
 
-export const bulkUpdate = async (commands: Command[], transaction: Transaction = getTransaction()) => {
+export const bulkUpdate = async (
+  commands: Command[],
+  transaction: Transaction = getTransaction()
+) => {
   await createNodes(filterCommands(commands, "createNode"), transaction);
   await createRelationships(filterCommands(commands, "createRelationship"), transaction);
   await updateNodes(filterCommands(commands, "updateNode"), transaction);
@@ -142,7 +145,10 @@ export const createRelationships = async (
   }
 };
 
-export const updateNodes = async (updates: Omit<UpdateNode, "type">[], transaction: Transaction = getTransaction()) => {
+export const updateNodes = async (
+  updates: Omit<UpdateNode, "type">[],
+  transaction: Transaction = getTransaction()
+) => {
   if (!updates.length) return;
   const result = await transaction.run({
     text: "UNWIND $updates AS u MATCH (n) WHERE id(n) = u.id SET n += u.props RETURN u.id AS id",

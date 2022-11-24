@@ -1,5 +1,7 @@
 /** @type {import('ts-jest/dist/types').InitialOptionsTsJest} */
 module.exports = {
+  globalSetup: '<rootDir>/src/test/setup.ts',
+  globalTeardown: '<rootDir>/src/test/teardown.ts',
   passWithNoTests: true,
   roots: ["<rootDir>/src"],
   testMatch: ["<rootDir>/src/**/*.(test|spec).(ts|js)"],

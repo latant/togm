@@ -1,5 +1,8 @@
 {
   "eslint.workingDirectories": [
     "packages/togm",
-  ]
+  ],
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  }
 }
