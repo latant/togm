@@ -7,10 +7,10 @@
   "files": ["dist"],
   "main": "dist/togm.js",
   "scripts": {
-    "build": "tsc --project tsconfig.build.json",
-    "start": "nodemon",
-    "test": "jest --coverage",
-    "lint": "mkdirp lint && eslint src > lint/togm.lint.log"
+    "start": "nodemon --config config/nodemon.json",
+    "build": "tsc --project config/tsconfig.build.json",
+    "test": "(mkdirp cov && jest --config config/jest.config.json --coverage 2>&1) || (realpath cov/index.html && exit 1)",
+    "lint": "(mkdirp lint && eslint src > lint/lint.log) || (realpath lint/lint.log && exit 1)"
   },
   "dependencies": {
     "cls-hooked": "4.2.2",
@@ -32,7 +32,8 @@
     "prettier": "2.6.2",
     "eslint-plugin-prettier": "4.2.1",
     "eslint-config-prettier": "8.5.0",
+    "testcontainers": "9.0.0",
     "mkdirp": "1.0.4",
-    "testcontainers": "9.0.0"
+    "fs.realpath": "1.0.0"
   }
 }
