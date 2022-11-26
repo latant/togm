@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Transaction } from "neo4j-driver";
+import { Integer, Transaction } from "neo4j-driver";
 import { AS, CREATE, identifier, MATCH, parameter, RETURN, SET, UNWIND, WHERE } from "./cypher";
 import { Id } from "./definition";
 import { getTransaction, runQuery } from "./transaction";
@@ -17,7 +17,7 @@ export type CreateNode = {
   type: "createNode";
   labels?: string[];
   properties?: { [key: string]: any };
-  id?: string;
+  id?: number;
 };
 
 export type CreateRelationship = {
@@ -26,7 +26,7 @@ export type CreateRelationship = {
   start: Id;
   end: Id;
   properties?: { [key: string]: any };
-  id?: string;
+  id?: number;
 };
 
 export type UpdateNode = {
@@ -83,7 +83,7 @@ export const createNodes = async (
   for (const c of creations) {
     const lbl = c.labels ? c.labels.map((l) => `:\`${l}\``).join("") : "";
     if (!nodesByLabels[lbl]) nodesByLabels[lbl] = [];
-    nodesByLabels[lbl].push(c.properties || {});
+    nodesByLabels[lbl].push(c);
   }
   for (const crs of Object.values(nodesByLabels)) {
     const creationsParam = parameter(
@@ -100,7 +100,7 @@ export const createNodes = async (
       transaction
     );
     for (const i in result.records) {
-      crs[i].id = result.records[i].get("id");
+      crs[i].id = (result.records[i].get("id") as Integer).toNumber();
     }
   }
 };
@@ -140,7 +140,7 @@ export const createRelationships = async (
       error("Not every relationships could be created");
     }
     for (const i in result.records) {
-      crs[i].id = result.records[i].get("id");
+      crs[i].id = (result.records[i].get("id") as Integer).toNumber();
     }
   }
 };

@@ -238,8 +238,8 @@ export const referenceFactories = (): PascalizeKeys<Flatten1<ReferenceFactories>
         type: "reference",
         relationshipType: relType,
         label: label,
-        multiplicity: m,
-        direction: d,
+        multiplicity: multiplicities[m as keyof typeof multiplicities],
+        direction: directions[d as keyof typeof directions],
       });
     }
   }

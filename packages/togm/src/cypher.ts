@@ -75,7 +75,7 @@ export const generateQuery = (...root: CypherNode[]) => {
     } else if (Array.isArray(node)) {
       node.forEach(visit);
     } else if (node.type === "keyword") {
-      if (!afterKeyword) append(" ");
+      if (!afterKeyword) strings.push(" ");
       append(node.keyword);
       afterKeyword = true;
     } else if (node.type === "map") {
@@ -95,5 +95,5 @@ export const generateQuery = (...root: CypherNode[]) => {
     }
   };
   visit(root);
-  return { text: strings.join(), parameters };
+  return { text: strings.join(""), parameters };
 };

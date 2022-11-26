@@ -1,3 +1,5 @@
+import { testGlobal } from "./testUtils";
+
 export default async () => {
-  await (global as any).neo4jContainer.stop();
+  await testGlobal.neo4j.testContainer?.stop?.();
 };
