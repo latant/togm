@@ -93,8 +93,6 @@ const nodeConditionCypher = (node: NodeDef, cond: any, n: Identifier, op: Op): C
       ]);
     } else if (k === "$any") {
       result.push(nodeConditionCypher(node, cond[k], n, "any"));
-    } else if (k === "$all") {
-      result.push(nodeConditionCypher(node, cond[k], n, "all"));
     } else if (k === "$not") {
       result.push(["(", NOT, nodeConditionCypher(node, cond[k], n, "all"), ")"]);
     }
@@ -102,17 +100,11 @@ const nodeConditionCypher = (node: NodeDef, cond: any, n: Identifier, op: Op): C
   return joinOp(op, result);
 };
 
-const isPropCondKey = (key: string): key is keyof PropConditionImpl => {
-  return true;
-};
-
 const propConditionCypher = (prop: string, cond: any, n: Identifier, op: Op): CypherNode => {
   const result: CypherNode[] = [];
   for (const k in cond) {
     if (k === "$any") {
       result.push(propConditionCypher(prop, cond[k], n, "any"));
-    } else if (k === "$all") {
-      result.push(propConditionCypher(prop, cond[k], n, "all"));
     } else if (k === "$not") {
       result.push(["(", NOT, propConditionCypher(prop, cond[k], n, "all"), ")"]);
     } else {
