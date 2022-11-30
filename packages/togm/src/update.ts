@@ -169,7 +169,6 @@ export const updateRelationships = async (
   transaction: Transaction = getTransaction()
 ) => {
   if (!updates.length) return;
-  if (!updates.length) return;
   const result = await transaction.run({
     text: "UNWIND $updates AS u MATCH ()-[r]->() WHERE id(r) = u.id SET r += u.props RETURN u.id AS id",
     parameters: {
@@ -190,7 +189,7 @@ export const deleteRelationships = async (
 ) => {
   if (!deletions.length) return;
   await transaction.run({
-    text: "MATCH ()-[r]->() WHERE id(r) IN $ids DELETE R",
+    text: "MATCH ()-[r]->() WHERE id(r) IN $ids DELETE r",
     parameters: { ids: deletions.map((d) => getId(d.relationship)) },
   });
 };

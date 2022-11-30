@@ -5,6 +5,7 @@ import { Condition, nodeMatchProvider } from "./condition";
 import { CypherNode, identifier, Identifier, MapEntry } from "./cypher";
 import {
   applyMultiplicity,
+  coercedTypes,
   EntityProp,
   EntityRef,
   Graph,
@@ -61,7 +62,7 @@ type SelectionResultKeys<G extends GraphDef, L extends keyof G, T extends keyof 
   | "$id"
   | (EntityRef<G[L]["members"]> & keyof Q)
   | EntityProp<G[L]["members"]>
-  | (T extends keyof G ? keyof G[T]["members"] : T extends string ? "$rid" : never);
+  | (T extends string ? "$rid" : never);
 
 type SelectionResultNode<G extends GraphDef, L extends keyof G, T extends keyof G | null, Q> = {
   [K in SelectionResultKeys<G, L, T, Q>]: K extends keyof G[L]["members"]
@@ -117,7 +118,7 @@ const requireRelationship = (graph: Graph, type: string) => {
 };
 
 const requireRef = (lbl: string, def: NodeDef, k: string) => {
-  const member = (def as any)[k] ?? error(`Node member not found: ${lbl}.${k}`);
+  const member = def.members[k] ?? error(`Node member not found: ${lbl}.${k}`);
   if (member.type !== "reference") error(`Member not reference: ${lbl}.${k}`);
   return member as Reference;
 };
@@ -130,7 +131,10 @@ export const selectionType = (
   relationshipType?: string
 ): ZodType => {
   const nodeDef = requireNode(graph, label);
-  const relDef = relationshipType && requireRelationship(graph, relationshipType);
+  const relDef =
+    relationshipType &&
+    graph.definition[relationshipType] &&
+    requireRelationship(graph, relationshipType);
   const fields: { [key: string]: ZodType } = {};
   if (relDef) {
     for (const k in relDef.members) {
@@ -143,14 +147,14 @@ export const selectionType = (
       fields[k] = member.zodType;
     }
   }
-  fields["$id"] = z.number();
-  if (relDef) fields["$rid"] = z.number();
+  fields.$id = coercedTypes.number;
+  if (relationshipType) fields.$rid = coercedTypes.number;
   for (const k in query) {
     const ref = requireRef(label, nodeDef, k);
     const nestedType = selectionType(query[k], graph, ref.label, ref.relationshipType);
     fields[k] = applyMultiplicity(nestedType, ref.multiplicity);
   }
-  return z.strictObject(fields).partial();
+  return z.strictObject(fields);
 };
 
 export const selectionCypher = (
@@ -176,7 +180,7 @@ export const selectionCypher = (
   entries["$id"] = [identifier("$id"), ["id(", node.var, ")"]];
   if (rel) entries["$rid"] = [identifier("$rid"), ["id(", rel.var, ")"]];
   for (const k in query) {
-    const ref = (nodeDef as any)[k] as Reference;
+    const ref = nodeDef.members[k] as Reference;
     const targetNode = identifier();
     const targetRel = identifier();
     entries[k] = [

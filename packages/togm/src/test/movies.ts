@@ -1,4 +1,37 @@
+import { def } from "../togm";
 import { CreateNode, createNodes, createRelationships } from "../update";
+
+export const moviesGraph = () =>
+  def.graph({
+    Movie: def.node({
+      title: def.string(),
+      tagline: def.stringOrNull(),
+      released: def.number(),
+      actors: def.manyIn("ACTED_IN", "Person"),
+      reviewers: def.manyIn("REVIEWED", "Person"),
+      producers: def.manyIn("PRODUCED", "Person"),
+      writers: def.manyIn("WROTE", "Person"),
+      directors: def.manyIn("DIRECTED", "Person"),
+    }),
+    Person: def.node({
+      name: def.string(),
+      born: def.numberOrNull(),
+      followers: def.manyIn("FOLLOWS", "Person"),
+      followees: def.manyOut("FOLLOWS", "Person"),
+      moviesActedIn: def.manyOut("ACTED_IN", "Movie"),
+      reviewedMovies: def.manyOut("REVIEWED", "Movie"),
+      producedMovies: def.manyOut("PRODUCED", "Movie"),
+      writtenMovies: def.manyOut("WROTE", "Movie"),
+      directedMovies: def.manyOut("DIRECTED", "Movie"),
+    }),
+    ACTED_IN: def.relationship({
+      roles: def.stringArray(),
+    }),
+    REVIEWED: def.relationship({
+      rating: def.number(),
+      summary: def.string(),
+    }),
+  });
 
 export const loadMoviesExample = async () => {
   const TheMatrix: CreateNode = {

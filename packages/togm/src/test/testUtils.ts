@@ -1,5 +1,6 @@
 import neo4j from "neo4j-driver";
 import { StartedNeo4jContainer } from "testcontainers";
+import { ZodType } from "zod";
 import { runSession } from "../transaction";
 
 export const testGlobal: {
@@ -30,4 +31,8 @@ export const expectException = async (run: () => any) => {
     fail("no exception thrown");
     // eslint-disable-next-line no-empty
   } catch (_) {}
+};
+
+export const expectValid = (x: any, type: ZodType) => {
+  expect(type.safeParse(x)).toEqual({ success: true, data: expect.anything() });
 };

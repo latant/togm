@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Date, DateTime, Duration, LocalDateTime, LocalTime, Point } from "neo4j-driver";
+import { Date, DateTime, Duration, Integer, LocalDateTime, LocalTime, Point } from "neo4j-driver";
 import { z, ZodType } from "zod";
 import { selection, Selection, SelectionDef } from "./selection";
 import { CreateNode, CreateRelationship, UpdateNode, UpdateRelationship } from "./update";
@@ -64,26 +64,33 @@ type RelMembers = {
 export type LabelKey<G extends GraphDef, L extends keyof G> = G[L]["type"] extends "node"
   ? L
   : never;
+
 export type TypeKey<G extends GraphDef, T extends keyof G> = G[T]["type"] extends "relationship"
   ? T
   : never;
+
 export type PropKey<
   M extends NodeMembers | RelMembers,
   K extends keyof M
 > = M[K]["type"] extends "property" ? K : never;
+
 export type RefKey<
   M extends NodeMembers | RelMembers,
   K extends keyof M
 > = M[K]["type"] extends "reference" ? K : never;
+
 export type GraphLabel<G extends GraphDef> = keyof {
   [K in keyof G as LabelKey<G, K>]: 0;
 };
+
 export type GraphType<G extends GraphDef> = keyof {
   [K in keyof G as TypeKey<G, K>]: 0;
 };
+
 export type EntityProp<M extends NodeMembers | RelMembers> = keyof {
   [K in keyof M as PropKey<M, K>]: 0;
 };
+
 export type EntityRef<M extends NodeMembers | RelMembers> = keyof {
   [K in keyof M as RefKey<M, K>]: 0;
 };
@@ -99,6 +106,32 @@ const propTypes = {
   dateTime: z.custom<DateTime<number>>((v) => v instanceof DateTime),
   point: z.custom<Point<number>>((v) => v instanceof Point),
 };
+
+const propTypeCoercions: { [K in keyof typeof propTypes]: (type: ZodType) => ZodType } = {
+  string: (t) => t,
+  number: (t) => {
+    return z.preprocess((x) => {
+      if (typeof x === "bigint") {
+        return Number(x);
+      }
+      if (x instanceof Integer) {
+        return x.toNumber();
+      }
+      return x;
+    }, t);
+  },
+  boolean: (t) => t,
+  duration: (t) => t,
+  localTime: (t) => t,
+  date: (t) => t,
+  localDateTime: (t) => t,
+  dateTime: (t) => t,
+  point: (t) => t,
+};
+
+export const coercedTypes = Object.fromEntries(
+  Object.entries(propTypes).map(([k, t]) => [k, (propTypeCoercions as any)[k](t)])
+) as { [K in keyof typeof propTypes]: ZodType };
 
 const propCardinalities = {
   array: true,
@@ -213,7 +246,9 @@ export const propertyFactories = (): PascalizeKeys<Flatten2<PropertyFactories>> 
         result[`${p}${capitalize(c)}${capitalize(n)}`] = (type?: ZodType) => {
           const array = propCardinalities[c as keyof typeof propCardinalities];
           const nullable = propNullabilities[n as keyof typeof propNullabilities];
-          let zodType: ZodType = type ?? propTypes[p as keyof typeof propTypes];
+          let zodType = propTypeCoercions[p as keyof typeof propTypes](
+            type ?? propTypes[p as keyof typeof propTypes]
+          );
           if (array) zodType = zodType.array();
           if (nullable) zodType = zodType.nullable();
           return {

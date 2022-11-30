@@ -1,23 +1,37 @@
 import { readFileSync } from "fs";
 import { Date as NeoDate, Node, Relationship } from "neo4j-driver";
 import { loadMoviesExample } from "./test/movies";
+import { loadNorthwindExample } from "./test/northwind";
 import { expectException, useTestDatabase } from "./test/testUtils";
 import { readTransaction, runQuery, writeTransaction } from "./transaction";
-import { createNodes, createRelationships, updateNodes, updateRelationships } from "./update";
+import {
+  bulkUpdate,
+  CreateNode,
+  createNodes,
+  CreateRelationship,
+  createRelationships,
+  deleteNodes,
+  deleteRelationships,
+  updateNodes,
+  updateRelationships,
+} from "./update";
 
 describe("testing graph updating functions", () => {
   const driver = useTestDatabase();
 
   it("should create nodes correctly", async () => {
-    const node0 = {
-      id: undefined as undefined | number,
+    const node0: CreateNode = {
+      type: "createNode",
+      id: undefined,
     };
-    const node1 = {
-      id: undefined as undefined | number,
+    const node1: CreateNode = {
+      type: "createNode",
+      id: undefined,
       labels: ["User"],
     };
-    const node2 = {
-      id: undefined as undefined | number,
+    const node2: CreateNode = {
+      type: "createNode",
+      id: undefined,
       labels: ["User", "Admin"],
       properties: { username: "username" },
     };
@@ -40,19 +54,24 @@ describe("testing graph updating functions", () => {
 
   it("should create relationships correctly", async () => {
     const SINCE = NeoDate.fromStandardDate(new Date());
-    const node = { id: undefined as undefined | number };
+    const node: CreateNode = {
+      type: "createNode",
+      id: undefined,
+    };
     await writeTransaction(driver, async () => {
       await createNodes([node]);
     });
-    const rel0 = {
-      id: undefined as undefined | number,
+    const rel0: CreateRelationship = {
+      type: "createRelationship",
+      id: undefined,
       start: node,
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       end: node.id!,
       relationshipType: "RELATES_TO",
     };
-    const rel1 = {
-      id: undefined as undefined | number,
+    const rel1: CreateRelationship = {
+      type: "createRelationship",
+      id: undefined,
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       start: node.id!,
       end: node,
@@ -77,7 +96,10 @@ describe("testing graph updating functions", () => {
   });
 
   it("should throw exception when a necessary node is not yet created for the relationship", async () => {
-    const node = { id: undefined as undefined | number };
+    const node: CreateNode = {
+      type: "createNode",
+      id: undefined,
+    };
     await writeTransaction(driver, async () => {
       await createNodes([node]);
     });
@@ -125,6 +147,36 @@ describe("testing graph updating functions", () => {
     });
     await writeTransaction(driver, async () => {
       await loadMoviesExample();
+    });
+    const createdNodes = await readTransaction(driver, async () => {
+      const result = await runQuery("MATCH (n) return n");
+      return result.records.map((r) => r.get("n") as Node);
+    });
+    const createdRelationships = await readTransaction(driver, async () => {
+      const result = await runQuery("MATCH ()-[r]->() return r");
+      return result.records.map((r) => r.get("r") as Relationship);
+    });
+    expect(createdNodes.length).toBe(originalNodes.length);
+    expect(createdRelationships.length).toBe(originalRelationships.length);
+  });
+
+  it("should create the same northwind graph as the example cypher does", async () => {
+    await writeTransaction(driver, async () => {
+      await runQuery(readFileSync("src/test/northwind.cypher").toString());
+    });
+    const originalNodes = await readTransaction(driver, async () => {
+      const result = await runQuery("MATCH (n) return n");
+      return result.records.map((r) => r.get("n") as Node);
+    });
+    const originalRelationships = await readTransaction(driver, async () => {
+      const result = await runQuery("MATCH ()-[r]->() return r");
+      return result.records.map((r) => r.get("r") as Relationship);
+    });
+    await writeTransaction(driver, async () => {
+      await runQuery("MATCH (n) DETACH DELETE n");
+    });
+    await writeTransaction(driver, async () => {
+      await loadNorthwindExample();
     });
     const createdNodes = await readTransaction(driver, async () => {
       const result = await runQuery("MATCH (n) return n");
@@ -268,5 +320,152 @@ describe("testing graph updating functions", () => {
         ]);
       });
     });
+  });
+
+  it("should delete node correctly", async () => {
+    await writeTransaction(driver, async () => {
+      await createNodes([{}]);
+    });
+    const node = await readTransaction(driver, async () => {
+      const result = await runQuery("MATCH (n) RETURN n");
+      return result.records[0].get("n") as Node;
+    });
+    await writeTransaction(driver, async () => {
+      await deleteNodes([{ node: node.identity.toNumber() }]);
+    });
+    const result = await readTransaction(driver, () => runQuery("MATCH (n) RETURN n"));
+    expect(result.records.length).toBe(0);
+  });
+
+  it("should delete relationship correctly", async () => {
+    await writeTransaction(driver, async () => {
+      await runQuery("CREATE ()-[:RELATES_TO]->()");
+    });
+    const rel = await readTransaction(driver, async () => {
+      const result = await runQuery("MATCH ()-[r]->() RETURN r");
+      return result.records[0].get("r") as Relationship;
+    });
+    await writeTransaction(driver, async () => {
+      await deleteRelationships([{ relationship: rel.identity.toNumber() }]);
+    });
+    const result = await readTransaction(driver, () => runQuery("MATCH ()-[r]->() RETURN r"));
+    expect(result.records.length).toBe(0);
+  });
+
+  it("should not do anything when bulkCreate is called with an empty array", async () => {
+    await writeTransaction(driver, async () => {
+      await runQuery(readFileSync("src/test/movies.cypher").toString());
+    });
+    const originalNodes = await readTransaction(driver, async () => {
+      const result = await runQuery("MATCH (n) return n");
+      return result.records.map((r) => r.get("n") as Node);
+    });
+    const originalRelationships = await readTransaction(driver, async () => {
+      const result = await runQuery("MATCH ()-[r]->() return r");
+      return result.records.map((r) => r.get("r") as Relationship);
+    });
+    await writeTransaction(driver, async () => {
+      await bulkUpdate([]);
+    });
+    const leftNodes = await readTransaction(driver, async () => {
+      const result = await runQuery("MATCH (n) return n");
+      return result.records.map((r) => r.get("n") as Node);
+    });
+    const leftRelationships = await readTransaction(driver, async () => {
+      const result = await runQuery("MATCH ()-[r]->() return r");
+      return result.records.map((r) => r.get("r") as Relationship);
+    });
+    expect(leftNodes).toEqual(originalNodes);
+    expect(leftRelationships).toEqual(originalRelationships);
+  });
+
+  it("should take command order into account on bulk updates", async () => {
+    const node0: CreateNode = {
+      id: undefined,
+      type: "createNode",
+      labels: ["NewNode"],
+    };
+    const node1: CreateNode = {
+      id: undefined,
+      type: "createNode",
+      labels: ["NewUpdatedNode"],
+    };
+    const node2: CreateNode = {
+      id: undefined,
+      type: "createNode",
+      labels: ["NewDeletedNode"],
+    };
+    const rel0: CreateRelationship = {
+      id: undefined,
+      type: "createRelationship",
+      start: node0,
+      end: node1,
+      relationshipType: "NEW_REL",
+    };
+    const rel1: CreateRelationship = {
+      id: undefined,
+      type: "createRelationship",
+      start: node1,
+      end: node0,
+      relationshipType: "NEW_UPDATED_REL",
+    };
+    const rel2: CreateRelationship = {
+      id: undefined,
+      type: "createRelationship",
+      start: node0,
+      end: node1,
+      relationshipType: "NEW_DELETED_REL",
+    };
+    const rel3: CreateRelationship = {
+      id: undefined,
+      type: "createRelationship",
+      start: node1,
+      end: node2,
+      relationshipType: "NEW_IMPLICITLY_DELETED_REL",
+    };
+    await writeTransaction(driver, async () => {
+      await bulkUpdate([
+        node0,
+        node1,
+        node2,
+        rel0,
+        rel1,
+        rel2,
+        {
+          type: "updateNode",
+          node: node1,
+          properties: { description: "updated node" },
+        },
+        {
+          type: "updateRelationship",
+          relationship: rel1,
+          properties: { description: "updated relationship" },
+        },
+        { type: "deleteNode", node: node2 },
+        { type: "deleteRelationship", relationship: rel2 },
+      ]);
+    });
+    const nodes = await readTransaction(driver, async () => {
+      const result = await runQuery("MATCH (n) RETURN n");
+      return result.records.map((r) => r.get("n") as Node);
+    });
+    const rels = await readTransaction(driver, async () => {
+      const result = await runQuery("MATCH ()-[r]->() RETURN r");
+      return result.records.map((r) => r.get("r") as Relationship);
+    });
+    expect(nodes.length).toBe(2);
+    expect(rels.length).toBe(2);
+    const resultNode0 = nodes.find((n) => n.identity.toNumber() === node0.id) ?? fail();
+    const resultNode1 = nodes.find((n) => n.identity.toNumber() === node1.id) ?? fail();
+    const resultRel0 = rels.find((n) => n.identity.toNumber() === rel0.id) ?? fail();
+    const resultRel1 = rels.find((n) => n.identity.toNumber() === rel1.id) ?? fail();
+    expect(resultNode0.properties).toEqual({});
+    expect(resultNode1.properties).toEqual({ description: "updated node" });
+    expect(resultRel0.properties).toEqual({});
+    expect(resultRel1.properties).toEqual({ description: "updated relationship" });
+    expect(resultRel0.start.toNumber()).toEqual(node0.id);
+    expect(resultRel0.end.toNumber()).toEqual(node1.id);
+    expect(resultRel1.start.toNumber()).toEqual(node1.id);
+    expect(resultRel1.end.toNumber()).toEqual(node0.id);
   });
 });
