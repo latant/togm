@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-types */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // FLATTEN
 
@@ -51,6 +52,24 @@ export const capitalize = (str: any) => {
 };
 
 // REST
+
+type Impossible<K extends keyof any> = {
+  [P in K]: never;
+};
+
+export type Strict<T, U> = U & Impossible<Exclude<keyof U, keyof T>>;
+
+export type DeepStrict<T, U> = Strict<T, U> & {
+  // [K in keyof T & keyof U]: [NonNullable<T[K]>, U[K]]
+  [K in keyof T & keyof U]: DeepStrict<NonNullable<T[K]>, U[K]>;
+};
+
+// type A = { b?: B; c: C };
+// type B = { a?: A; c?: B };
+// type C = { a?: A; b?: B };
+// const f = <T extends A>(t: T & DeepStrict<A, T>) => t;
+// f({ b: {}, c: { a: { c: {} }, foo: "bar" }, foo: "bar" });
+// f({ c: {} });
 
 export type SameKeys<A, B> = {
   [K in keyof A]: K extends keyof B ? B[K] : never;

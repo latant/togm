@@ -3,15 +3,15 @@ import { Date, DateTime, Duration, Integer, LocalDateTime, LocalTime, Point } fr
 import { z, ZodType } from "zod";
 import { selection, Selection, SelectionDef } from "./selection";
 import { CreateNode, CreateRelationship, UpdateNode, UpdateRelationship } from "./update";
-import { capitalize, Flatten1, Flatten2, PascalizeKeys } from "./util";
+import { capitalize, DeepStrict, Flatten1, Flatten2, PascalizeKeys, Strict } from "./util";
 
 export type Id = { id?: number } | number;
 
 export type Graph<G extends GraphDef = GraphDef> = {
   definition: G;
   select: {
-    [L in keyof G as LabelKey<G, L>]: <Q extends SelectionDef<Q, G, L>>(
-      def: Q
+    [L in keyof G as LabelKey<G, L>]: <Q extends SelectionDef<G, L>>(
+      def: Q & DeepStrict<SelectionDef<G, L>, Q>
     ) => Selection<G, L, Q>;
   };
   create: {

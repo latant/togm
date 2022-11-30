@@ -18,12 +18,12 @@ import {
   WithMultiplicity,
 } from "./definition";
 import { MatchProvider, NodeExpressionProvider, runReadQuery } from "./read";
-import { error, SameKeys } from "./util";
+import { error } from "./util";
 
 export type Selection<
   G extends GraphDef,
   L extends keyof G,
-  Q extends SelectionDef<Q, G, L>
+  Q extends SelectionDef<G, L>
 > = SelectionImpl<SelectionResultNode<G, L, null, Q>, G[L] extends NodeDef ? G[L] : never>;
 
 type SelectionImpl<T, N extends NodeDef> = {
@@ -36,26 +36,15 @@ type SelectionImpl<T, N extends NodeDef> = {
   findOne: (f: Condition<N>, t?: Transaction) => Promise<T | undefined>;
 } & NodeExpressionProvider<ZodType<T>>;
 
-type NestedSelectionDef<Q, G extends GraphDef, R extends Reference> = SelectionDef<
-  Q,
-  G,
-  R["label"]
->;
+type NestedSelectionDef<G extends GraphDef, R extends Reference> = SelectionDef<G, R["label"]>;
 
-export type SelectionDef<Q, G extends GraphDef, L extends keyof G> = G[L]["type"] extends "node"
-  ? SameKeys<
-      Q,
-      {
-        [K in keyof G[L]["members"] as RefKey<
-          G[L]["members"],
-          K
-        >]?: G[L]["members"][K] extends Reference
-          ? K extends keyof Q
-            ? NestedSelectionDef<Q[K], G, G[L]["members"][K]>
-            : never
-          : never;
-      }
-    >
+export type SelectionDef<G extends GraphDef, L extends keyof G> = G[L]["type"] extends "node"
+  ? {
+      [K in keyof G[L]["members"] as RefKey<
+        G[L]["members"],
+        K
+      >]?: G[L]["members"][K] extends Reference ? NestedSelectionDef<G, G[L]["members"][K]> : never;
+    }
   : never;
 
 type SelectionResultKeys<G extends GraphDef, L extends keyof G, T extends keyof G | null, Q> =
@@ -229,9 +218,14 @@ export const selection = (
       const result = await runReadQuery(p, exp, t);
       return result[0];
     },
-    find: async (c, t) => runReadQuery(nodeMatchProvider(label, (graph as any)[label], c), exp, t),
+    find: async (c, t) =>
+      runReadQuery(nodeMatchProvider(label, requireNode(graph, label), c), exp, t),
     findOne: async (c, t) => {
-      const result = await runReadQuery(nodeMatchProvider(label, (graph as any)[label], c), exp, t);
+      const result = await runReadQuery(
+        nodeMatchProvider(label, requireNode(graph, label), c),
+        exp,
+        t
+      );
       return result[0];
     },
   };
