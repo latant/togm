@@ -154,4 +154,22 @@ describe("condition tests", () => {
       )
     );
   });
+
+  it("should properly use 'is null' and 'is not null' conditions", async () => {
+    const graph = moviesGraph();
+    await writeTransaction(driver, () => loadMoviesExample());
+    const allMovies = await readTransaction(driver, () => graph.select.Movie({}).find({}));
+    const moviesWithTagline = await readTransaction(driver, () =>
+      graph.select.Movie({}).find({
+        tagline: { null: false },
+      })
+    );
+    const moviesWithoutTagline = await readTransaction(driver, () =>
+      graph.select.Movie({}).find({
+        tagline: { null: true },
+      })
+    );
+    expect(moviesWithoutTagline.length).toBe(1);
+    expect(moviesWithTagline.length + moviesWithoutTagline.length).toBe(allMovies.length);
+  });
 });

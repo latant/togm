@@ -51,7 +51,7 @@ type SelectionResultKeys<G extends GraphDef, L extends keyof G, T extends keyof 
   | "$id"
   | (EntityRef<G[L]["members"]> & keyof Q)
   | EntityProp<G[L]["members"]>
-  | (T extends string ? "$rid" : never);
+  | (T extends string ? "$rid" | keyof G[T]["members"] : never);
 
 type SelectionResultNode<G extends GraphDef, L extends keyof G, T extends keyof G | null, Q> = {
   [K in SelectionResultKeys<G, L, T, Q>]: K extends keyof G[L]["members"]

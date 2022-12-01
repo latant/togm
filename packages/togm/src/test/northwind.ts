@@ -33,6 +33,8 @@ export const northwindGraph = () =>
       homePage: def.stringOrNull(),
       products: def.manyOut("SUPPLIES", "Product"),
     }),
+    SUPPLIES: def.relationship({}),
+    PART_OF: def.relationship({}),
   });
 
 export const loadNorthwindExample = async () => {

@@ -39,12 +39,14 @@ export const UNWIND = keyword("UNWIND");
 export const MATCH = keyword("MATCH");
 export const WHERE = keyword("WHERE");
 export const WITH = keyword("WITH");
+export const NULL = keyword("NULL");
 export const ENDS = keyword("ENDS");
 export const SET = keyword("SET");
 export const AND = keyword("AND");
 export const NOT = keyword("NOT");
 export const AS = keyword("AS");
 export const IN = keyword("IN");
+export const IS = keyword("IS");
 export const OR = keyword("OR");
 
 export const generateQuery = (...root: CypherNode[]) => {

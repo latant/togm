@@ -1,9 +1,23 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Date, DateTime, Duration, Integer, LocalDateTime, LocalTime, Point } from "neo4j-driver";
+import {
+  Date,
+  DateTime,
+  Duration,
+  isDate,
+  isDateTime,
+  isDuration,
+  isInt,
+  isLocalDateTime,
+  isLocalTime,
+  isPoint,
+  LocalDateTime,
+  LocalTime,
+  Point,
+} from "neo4j-driver";
 import { z, ZodType } from "zod";
 import { selection, Selection, SelectionDef } from "./selection";
 import { CreateNode, CreateRelationship, UpdateNode, UpdateRelationship } from "./update";
-import { capitalize, DeepStrict, Flatten1, Flatten2, PascalizeKeys, Strict } from "./util";
+import { capitalize, DeepStrict, Flatten1, Flatten2, PascalizeKeys } from "./util";
 
 export type Id = { id?: number } | number;
 
@@ -99,12 +113,12 @@ const propTypes = {
   string: z.string(),
   number: z.number(),
   boolean: z.boolean(),
-  duration: z.custom<Duration<number>>((v) => v instanceof Duration),
-  localTime: z.custom<LocalTime<number>>((v) => v instanceof LocalTime),
-  date: z.custom<Date<number>>((v) => v instanceof Date),
-  localDateTime: z.custom<LocalDateTime<number>>((v) => v instanceof LocalDateTime),
-  dateTime: z.custom<DateTime<number>>((v) => v instanceof DateTime),
-  point: z.custom<Point<number>>((v) => v instanceof Point),
+  duration: z.custom<Duration<number>>((v: any) => isDuration(v)),
+  localTime: z.custom<LocalTime<number>>((v: any) => isLocalTime(v)),
+  date: z.custom<Date<number>>((v: any) => isDate(v)),
+  localDateTime: z.custom<LocalDateTime<number>>((v: any) => isLocalDateTime(v)),
+  dateTime: z.custom<DateTime<number>>((v: any) => isDateTime(v)),
+  point: z.custom<Point<number>>((v: any) => isPoint(v)),
 };
 
 const propTypeCoercions: { [K in keyof typeof propTypes]: (type: ZodType) => ZodType } = {
@@ -114,7 +128,7 @@ const propTypeCoercions: { [K in keyof typeof propTypes]: (type: ZodType) => Zod
       if (typeof x === "bigint") {
         return Number(x);
       }
-      if (x instanceof Integer) {
+      if (isInt(x)) {
         return x.toNumber();
       }
       return x;

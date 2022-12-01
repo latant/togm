@@ -1,5 +1,5 @@
 import { Transaction } from "neo4j-driver";
-import { ZodType, z } from "zod";
+import { ZodType } from "zod";
 import { AS, CypherNode, identifier, Identifier, RETURN } from "./cypher";
 import { getTransaction, runQuery } from "./transaction";
 
@@ -26,5 +26,5 @@ export const runReadQuery = async <R extends ZodType>(
     [match.cypher(x), RETURN, expression.cypher(x), AS, "result"],
     transaction
   );
-  return result.records.map((r) => expression.type.parse(r.get("result"))) as z.infer<R>[];
+  return expression.type.array().parse(result.records.map((r) => r.get("result")));
 };

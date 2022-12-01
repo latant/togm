@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MATCH } from "./cypher";
 import { loadMoviesExample, moviesGraph } from "./test/movies";
 import { loadNorthwindExample, northwindGraph } from "./test/northwind";
 import { expectException, expectValid, useTestDatabase } from "./test/testUtils";
@@ -125,5 +126,28 @@ describe("test type-safe graph selections", () => {
   it("should throw an exception when a selection field is not a member of the entity", async () => {
     const graph = northwindGraph();
     await expectException(() => graph.select.Product({ description: {} } as any));
+  });
+
+  it("should use match provider for selection correctly", async () => {
+    const graph = moviesGraph();
+    await writeTransaction(driver, loadMoviesExample);
+    const foundMovies = await readTransaction(driver, () => graph.select.Movie({}).find({}));
+    const foundMovie = await readTransaction(driver, () => graph.select.Movie({}).findOne({}));
+    const matchedMovies = await readTransaction(driver, () =>
+      graph.select.Movie({}).match({
+        cypher(n) {
+          return [MATCH, "(", n, ":Movie)"];
+        },
+      })
+    );
+    const matchedMovie = await readTransaction(driver, () =>
+      graph.select.Movie({}).matchOne({
+        cypher(n) {
+          return [MATCH, "(", n, ":Movie)"];
+        },
+      })
+    );
+    expect(matchedMovie).toEqual(foundMovie);
+    expect(matchedMovies).toEqual(foundMovies);
   });
 });

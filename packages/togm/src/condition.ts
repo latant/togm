@@ -9,8 +9,10 @@ import {
   identifier,
   Identifier,
   IN,
+  IS,
   MATCH,
   NOT,
+  NULL,
   OR,
   parameter,
   STARTS,
@@ -30,8 +32,11 @@ type ConditionImpl<N extends NodeDef = NodeDef> = {
 
 type PropCondition<T> = All<PropConditionImpl<T>>;
 
-type PropConditionImpl<T = any> = { "="?: T } & (T extends string | null ? StringCondition : {}) &
-  (T extends NumericType | null ? NumericCondition<T> : {});
+type PropConditionImpl<T = any> = { "="?: NonNullable<T> } & (T extends string | null
+  ? StringCondition
+  : {}) &
+  (T extends NumericType | null ? NumericCondition<T> : {}) &
+  (null extends T ? { null: boolean } : {});
 
 type NumericType = number | Duration | LocalTime | Date | LocalDateTime | DateTime;
 
@@ -107,6 +112,8 @@ const propConditionCypher = (prop: string, cond: any, n: Identifier, op: Op): Cy
       result.push(propConditionCypher(prop, cond[k], n, "any"));
     } else if (k === "$not") {
       result.push(["(", NOT, propConditionCypher(prop, cond[k], n, "all"), ")"]);
+    } else if (k === "null") {
+      result.push([n, ".", identifier(prop), cond[k] ? [IS, NULL] : [IS, NOT, NULL]]);
     } else {
       result.push([
         n,

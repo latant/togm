@@ -26,11 +26,16 @@ export const useTestDatabase = () => {
 };
 
 export const expectException = async (run: () => any) => {
+  let exception: any;
   try {
     await run();
-    fail("no exception thrown");
     // eslint-disable-next-line no-empty
-  } catch (_) {}
+  } catch (e) {
+    exception = e;
+  }
+  if (!exception) {
+    fail("no exception thrown");
+  }
 };
 
 export const expectValid = (x: any, type: ZodType) => {
