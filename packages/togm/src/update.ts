@@ -3,7 +3,7 @@ import { Integer, Transaction } from "neo4j-driver";
 import { AS, CREATE, identifier, MATCH, parameter, RETURN, SET, UNWIND, WHERE } from "./cypher";
 import { Id } from "./definition";
 import { getTransaction, runQuery } from "./transaction";
-import { error } from "./util";
+import { error, getValues } from "./util";
 
 export type Command =
   | CreateNode
@@ -85,7 +85,7 @@ export const createNodes = async (
     if (!nodesByLabels[lbl]) nodesByLabels[lbl] = [];
     nodesByLabels[lbl].push(c);
   }
-  for (const crs of Object.values(nodesByLabels)) {
+  for (const crs of getValues(nodesByLabels)) {
     const creationsParam = parameter(
       "creations",
       crs.map((c) => c.properties || {})
@@ -116,7 +116,7 @@ export const createRelationships = async (
     if (!relsByType[type]) relsByType[type] = [];
     relsByType[type].push(c);
   }
-  for (const crs of Object.values(relsByType)) {
+  for (const crs of getValues(relsByType)) {
     const creationsParam = parameter(
       "creations",
       crs.map((c) => ({

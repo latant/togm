@@ -17,7 +17,7 @@ import {
 import { z, ZodType } from "zod";
 import { selection, Selection, SelectionDef } from "./selection";
 import { CreateNode, CreateRelationship, UpdateNode, UpdateRelationship } from "./update";
-import { capitalize, DeepStrict, Flatten1, Flatten2, PascalizeKeys } from "./util";
+import { capitalize, DeepStrict, Flatten1, Flatten2, getKeys, PascalizeKeys } from "./util";
 
 export type Id = { id?: number } | number;
 
@@ -246,15 +246,13 @@ export const defineRelationship = <M extends RelMembers>(
 
 export const propertyFactories = (): PascalizeKeys<Flatten2<PropertyFactories>> => {
   const result = {} as any;
-  for (const p in propTypes) {
-    for (const c in propCardinalities) {
-      for (const n in propNullabilities) {
+  for (const p of getKeys(propTypes)) {
+    for (const c of getKeys(propCardinalities)) {
+      for (const n of getKeys(propNullabilities)) {
         result[`${p}${capitalize(c)}${capitalize(n)}`] = (type?: ZodType) => {
-          const array = propCardinalities[c as keyof typeof propCardinalities];
-          const nullable = propNullabilities[n as keyof typeof propNullabilities];
-          let zodType = propTypeCoercions[p as keyof typeof propTypes](
-            type ?? propTypes[p as keyof typeof propTypes]
-          );
+          const array = propCardinalities[c];
+          const nullable = propNullabilities[n];
+          let zodType = propTypeCoercions[p](type ?? propTypes[p]);
           if (array) zodType = zodType.array();
           if (nullable) zodType = zodType.nullable();
           return {
@@ -273,14 +271,14 @@ export const propertyFactories = (): PascalizeKeys<Flatten2<PropertyFactories>> 
 
 export const referenceFactories = (): PascalizeKeys<Flatten1<ReferenceFactories>> => {
   const result = {} as any;
-  for (const m in multiplicities) {
-    for (const d in directions) {
+  for (const m of getKeys(multiplicities)) {
+    for (const d of getKeys(directions)) {
       result[`${m}${capitalize(d)}`] = (relType: string, label: string) => ({
         type: "reference",
         relationshipType: relType,
         label: label,
-        multiplicity: multiplicities[m as keyof typeof multiplicities],
-        direction: directions[d as keyof typeof directions],
+        multiplicity: multiplicities[m],
+        direction: directions[d],
       });
     }
   }

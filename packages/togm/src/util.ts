@@ -82,4 +82,4 @@ export const error = (msg: string): never => {
 export const getKeys = <T extends Record<string, any>>(obj: T) => Object.keys(obj) as (keyof T)[];
 
 export const getValues = <T extends Record<string, any>>(obj: T) =>
-  Object.values(obj) as T[keyof T];
+  Object.values(obj) as T[keyof T][];
