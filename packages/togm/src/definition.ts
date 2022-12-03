@@ -75,6 +75,8 @@ type RelMembers = {
   [K: string]: Property;
 };
 
+export type EntityMembers = NodeMembers | RelMembers;
+
 export type LabelKey<G extends GraphDef, L extends keyof G> = G[L]["type"] extends "node"
   ? L
   : never;
@@ -82,16 +84,6 @@ export type LabelKey<G extends GraphDef, L extends keyof G> = G[L]["type"] exten
 export type TypeKey<G extends GraphDef, T extends keyof G> = G[T]["type"] extends "relationship"
   ? T
   : never;
-
-export type PropKey<
-  M extends NodeMembers | RelMembers,
-  K extends keyof M
-> = M[K]["type"] extends "property" ? K : never;
-
-export type RefKey<
-  M extends NodeMembers | RelMembers,
-  K extends keyof M
-> = M[K]["type"] extends "reference" ? K : never;
 
 export type GraphLabel<G extends GraphDef> = keyof {
   [K in keyof G as LabelKey<G, K>]: 0;
@@ -101,15 +93,15 @@ export type GraphType<G extends GraphDef> = keyof {
   [K in keyof G as TypeKey<G, K>]: 0;
 };
 
-export type EntityProp<M extends NodeMembers | RelMembers> = keyof {
-  [K in keyof M as PropKey<M, K>]: 0;
+export type MemberProps<M extends NodeMembers | RelMembers> = {
+  [K in keyof M as M[K]["type"] extends "property" ? K : never]: M[K];
 };
 
-export type EntityRef<M extends NodeMembers | RelMembers> = keyof {
-  [K in keyof M as RefKey<M, K>]: 0;
+export type NodeRefs<M extends NodeMembers> = {
+  [K in keyof M as M[K]["type"] extends "reference" ? K : never]: M[K];
 };
 
-const propTypes = {
+export const propTypes = {
   string: z.string(),
   number: z.number(),
   boolean: z.boolean(),
@@ -168,13 +160,13 @@ export type Property<T = any, A extends boolean = boolean, N extends boolean = b
 type PropTypeStep1<T, A extends boolean> = A extends true ? T[] : T;
 type PropTypeStep2<T, N extends boolean> = N extends true ? null | T : T;
 
-const multiplicities = {
+export const multiplicities = {
   one: "single",
   many: "many",
   opt: "optional",
 } as const;
 
-const directions = {
+export const directions = {
   out: "outgoing",
   in: "incoming",
   undirected: "undirected",
@@ -229,7 +221,7 @@ type ReferenceFactories = {
 };
 
 type PropRecord<M extends NodeMembers | RelMembers> = {
-  [P in keyof M as PropKey<M, P>]: M[P] extends Property ? z.infer<M[P]["zodType"]> : never;
+  [P in keyof MemberProps<M>]: M[P] extends Property ? z.infer<M[P]["zodType"]> : never;
 };
 
 export const applyMultiplicity = (type: ZodType, multiplicity: Multiplicity): ZodType => {

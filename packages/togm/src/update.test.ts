@@ -15,6 +15,7 @@ import {
   updateNodes,
   updateRelationships,
 } from "./update";
+import { getKeys } from "./util";
 
 describe("testing graph updating functions", () => {
   const driver = useTestDatabase();
@@ -88,7 +89,7 @@ describe("testing graph updating functions", () => {
     expect(rels[0].type).toBe("RELATES_TO");
     expect(rels[0].properties).toEqual({});
     expect(rels[1].type).toBe("RELATES_TO");
-    expect(Object.keys(rels[1].properties).length).toBe(1);
+    expect(getKeys(rels[1].properties).length).toBe(1);
     const resultSince = rels[1].properties.since as NeoDate;
     expect(resultSince.day.toNumber()).toBe(SINCE.day);
     expect(resultSince.month.toNumber()).toBe(SINCE.month);

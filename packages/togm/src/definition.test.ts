@@ -26,6 +26,7 @@ import { expectValid, useTestDatabase } from "./test/testUtils";
 import { def } from "./togm";
 import { readTransaction, writeTransaction } from "./transaction";
 import { bulkUpdate, CreateNode } from "./update";
+import { getKeys } from "./util";
 
 describe("definition tests", () => {
   const driver = useTestDatabase();
@@ -42,7 +43,7 @@ describe("definition tests", () => {
 
   it("should create valid property factories", () => {
     const p = propertyFactories();
-    expect(Object.keys(p).length).toBe(9 * 2 * 2);
+    expect(getKeys(p).length).toBe(9 * 2 * 2);
     expect(p.boolean().type).toBe("property");
     expect(p.boolean().array).toBe(false);
     expect(p.boolean().nullable).toBe(false);
@@ -58,7 +59,7 @@ describe("definition tests", () => {
 
   it("should create valid reference factories", () => {
     const r = referenceFactories();
-    expect(Object.keys(r).length).toBe(3 * 3);
+    expect(getKeys(r).length).toBe(3 * 3);
     expect(r.manyIn("HAS_ADDRESS", "Address").direction).toBe("incoming");
     expect(r.manyIn("HAS_ADDRESS", "Address").label).toBe("Address");
     expect(r.manyIn("HAS_ADDRESS", "Address").relationshipType).toBe("HAS_ADDRESS");
