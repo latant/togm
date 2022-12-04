@@ -1,4 +1,3 @@
-import { write } from "fs";
 import { Session } from "neo4j-driver";
 import { expectException, useTestDatabase } from "./test/testUtils";
 import {

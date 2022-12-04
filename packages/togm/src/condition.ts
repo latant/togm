@@ -19,16 +19,24 @@ import {
   WHERE,
   WITH,
 } from "./cypher";
-import { NodeDef, Property, PropKey } from "./definition";
+import { EntityDefinition, NodeDefinition, Properties } from "./definition";
+import { Property } from "./property";
 import { MatchProvider } from "./read";
+import { error } from "./util";
 
-export type Condition<N extends NodeDef> = All<ConditionImpl<N>>;
+export type NodeCondition<N extends Properties> = All<NodeConditionImpl<N>>;
 
-type ConditionImpl<N extends NodeDef = NodeDef> = {
-  [K in keyof N["members"] as PropKey<N["members"], K>]?: N["members"][K] extends Property
-    ? PropCondition<z.infer<N["members"][K]["zodType"]>>
-    : never;
+export type ReferenceCondition<N extends Properties, R extends Properties> = All<
+  ReferenceConditionImpl<R & Omit<N, keyof R>>
+>;
+
+type NodeConditionImpl<P extends Properties = Properties> = {
+  [K in keyof P]?: P[K] extends Property ? PropCondition<z.infer<P[K]["zodType"]>> : never;
 } & { $id?: number | number[] };
+
+type ReferenceConditionImpl<P extends Properties> = {
+  [K in keyof P]?: P[K] extends Property ? PropCondition<z.infer<P[K]["zodType"]>> : never;
+} & { $id?: number | number[]; $rid?: number | number[] };
 
 type PropCondition<T> = All<PropConditionImpl<T>>;
 
@@ -36,7 +44,8 @@ type PropConditionImpl<T = any> = { "="?: NonNullable<T> } & (T extends string |
   ? StringCondition
   : {}) &
   (T extends NumericType | null ? NumericCondition<T> : {}) &
-  (null extends T ? { null: boolean } : {});
+  (null extends T ? { null?: boolean } : {}) &
+  (T extends (infer E)[] | null ? { contains: E } : {});
 
 type NumericType = number | Duration | LocalTime | Date | LocalDateTime | DateTime;
 
@@ -57,72 +66,113 @@ type All<T> = T & { $any?: Any<T>; $not?: All<T> };
 type Any<T> = T & { $all?: All<T>; $not?: All<T> };
 type Op = "any" | "all";
 
-const propCondOps = {
-  "=": "=",
-  "<": "<",
-  ">": ">",
-  "<=": "<=",
-  ">=": ">=",
-  contains: CONTAINS,
-  startsWith: [STARTS, WITH],
-  ensWith: [ENDS, WITH],
-};
-
 export const nodeMatchProvider = (
-  lbl: string,
-  node: NodeDef,
-  cond: ConditionImpl
+  label: string,
+  node: NodeDefinition,
+  cond: NodeConditionImpl
 ): MatchProvider => {
   return {
     cypher(n) {
-      const condCyp = nodeConditionCypher(node, cond, n, "all");
-      return [MATCH, "(", n, ":", identifier(lbl), ")", condCyp && [WHERE, condCyp]];
+      const condCyp = entityConditionCypher("all", cond, {
+        kind: label,
+        definition: node,
+        variable: n,
+      });
+      return [MATCH, "(", n, ":", identifier(label), ")", condCyp && [WHERE, condCyp]];
     },
   };
 };
 
-const nodeConditionCypher = (node: NodeDef, cond: any, n: Identifier, op: Op): CypherNode => {
+export type Entity = {
+  kind: string;
+  definition: EntityDefinition;
+  variable: Identifier;
+};
+
+const entityConditionEmitters: {
+  [key: string]: (value: any, node: Entity, relationship?: Entity) => CypherNode;
+} = {
+  $all: (v, n, r) => entityConditionCypher("all", v, n, r),
+  $any: (v, n, r) => entityConditionCypher("any", v, n, r),
+  $not: (v, n, r) => ["(", NOT, entityConditionCypher("all", v, n, r), ")"],
+  $id: (v, n, r) => [
+    "(id(",
+    n.variable,
+    ")",
+    typeof v === "number" ? " = " : IN,
+    parameter(undefined, v),
+    ")",
+  ],
+  $rid: (v, n, r) =>
+    r
+      ? ["(id(", r.variable, ")", typeof v === "number" ? " = " : IN, parameter(undefined, v), ")"]
+      : error("$rid condition is only available in reference conditions"),
+};
+
+export const entityConditionCypher = (
+  op: Op,
+  condition: any,
+  node: Entity,
+  relationship?: Entity
+): CypherNode => {
   const result: CypherNode[] = [];
-  for (const k in cond) {
-    const p = node.members[k];
-    if (p?.type === "property") {
-      result.push(propConditionCypher(k, cond[k], n, "all"));
-    } else if (k === "$id") {
-      result.push([
-        "(id(",
-        n,
-        ")",
-        typeof cond[k] === "number" ? " = " : IN,
-        parameter(undefined, cond[k]),
-        ")",
-      ]);
-    } else if (k === "$any") {
-      result.push(nodeConditionCypher(node, cond[k], n, "any"));
-    } else if (k === "$not") {
-      result.push(["(", NOT, nodeConditionCypher(node, cond[k], n, "all"), ")"]);
+  for (const k in condition) {
+    const emitter = entityConditionEmitters[k];
+    if (!emitter) {
+      const entity = node.definition.properties[k]
+        ? node
+        : relationship?.definition?.properties?.[k]
+        ? relationship
+        : undefined;
+      if (entity) {
+        const property = entity.definition.properties[k];
+        result.push(propConditionCypher("all", k, property, condition[k], entity.variable));
+      } else {
+        error(`Property not found in ${[node, relationship].filter((e) => e).join(" or ")}: ${k}`);
+      }
+    } else {
+      result.push(emitter(condition[k], node, relationship));
     }
   }
   return joinOp(op, result);
 };
 
-const propConditionCypher = (prop: string, cond: any, n: Identifier, op: Op): CypherNode => {
+const propConditionEmitters: {
+  [key: string]: (
+    propertyName: string,
+    property: Property,
+    entity: Identifier,
+    value: any
+  ) => CypherNode;
+} = {
+  $all: (n, p, e, v) => propConditionCypher("all", n, p, v, e),
+  $any: (n, p, e, v) => propConditionCypher("any", n, p, v, e),
+  $not: (n, p, e, v) => ["(", NOT, propConditionCypher("all", n, p, v, e), ")"],
+  "=": (n, p, e, v) => [e, ".", identifier(n), "=", parameter(undefined, v)],
+  "<": (n, p, e, v) => [e, ".", identifier(n), "<", parameter(undefined, v)],
+  ">": (n, p, e, v) => [e, ".", identifier(n), ">", parameter(undefined, v)],
+  "<=": (n, p, e, v) => [e, ".", identifier(n), "<=", parameter(undefined, v)],
+  ">=": (n, p, e, v) => [e, ".", identifier(n), ">=", parameter(undefined, v)],
+  contains: (n, p, e, v) =>
+    p.array
+      ? [parameter(undefined, v), IN, e, ".", identifier(n)]
+      : [e, ".", identifier(n), CONTAINS, parameter(undefined, v)],
+  startsWith: (n, p, e, v) => [e, ".", identifier(n), STARTS, WITH, parameter(undefined, v)],
+  ensWith: (n, p, e, v) => [e, ".", identifier(n), ENDS, WITH, parameter(undefined, v)],
+  null: (n, p, e, v) => [e, ".", identifier(n), v ? [IS, NULL] : [IS, NOT, NULL]],
+};
+
+const propConditionCypher = (
+  op: Op,
+  propertyName: string,
+  property: Property,
+  condition: any,
+  entity: Identifier
+): CypherNode => {
   const result: CypherNode[] = [];
-  for (const k in cond) {
-    if (k === "$any") {
-      result.push(propConditionCypher(prop, cond[k], n, "any"));
-    } else if (k === "$not") {
-      result.push(["(", NOT, propConditionCypher(prop, cond[k], n, "all"), ")"]);
-    } else if (k === "null") {
-      result.push([n, ".", identifier(prop), cond[k] ? [IS, NULL] : [IS, NOT, NULL]]);
-    } else {
-      result.push([
-        n,
-        ".",
-        identifier(prop),
-        (propCondOps as any)[k],
-        parameter(undefined, cond[k]),
-      ]);
-    }
+  for (const k in condition) {
+    const emitter = propConditionEmitters[k] ?? error(`Unknow property condition key: ${k}`);
+    result.push(emitter(propertyName, property, entity, condition[k]));
   }
   return joinOp(op, result);
 };

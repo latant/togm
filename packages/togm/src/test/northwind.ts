@@ -1,40 +1,40 @@
-import { def } from "../togm";
+import { ogm } from "../togm";
 import { CreateNode, createNodes, createRelationships } from "../update";
 
 export const northwindGraph = () =>
-  def.graph({
-    Product: def.node({
-      unitPrice: def.number(),
-      unitsInStock: def.number(),
-      reorderLevel: def.number(),
-      discontinued: def.boolean(),
-      quantityPerUnit: def.string(),
-      productName: def.string(),
-      unitsOnOrder: def.number(),
-      category: def.oneOut("PART_OF", "Category"),
-      suppliers: def.manyIn("SUPPLIES", "Supplier"),
+  ogm.graph({
+    Product: ogm.node({
+      unitPrice: ogm.number(),
+      unitsInStock: ogm.number(),
+      reorderLevel: ogm.number(),
+      discontinued: ogm.boolean(),
+      quantityPerUnit: ogm.string(),
+      productName: ogm.string(),
+      unitsOnOrder: ogm.number(),
+      category: ogm.oneOut("PART_OF", "Category"),
+      suppliers: ogm.manyIn("SUPPLIES", "Supplier"),
     }),
-    Category: def.node({
-      description: def.string(),
-      categoryName: def.string(),
-      products: def.manyIn("PART_OF", "Product"),
+    Category: ogm.node({
+      description: ogm.string(),
+      categoryName: ogm.string(),
+      products: ogm.manyIn("PART_OF", "Product"),
     }),
-    Supplier: def.node({
-      country: def.string(),
-      contactTitle: def.string(),
-      address: def.string(),
-      phone: def.string(),
-      city: def.string(),
-      contactName: def.string(),
-      companyName: def.string(),
-      postalCode: def.stringOrNull(),
-      fax: def.stringOrNull(),
-      region: def.stringOrNull(),
-      homePage: def.stringOrNull(),
-      products: def.manyOut("SUPPLIES", "Product"),
+    Supplier: ogm.node({
+      country: ogm.string(),
+      contactTitle: ogm.string(),
+      address: ogm.string(),
+      phone: ogm.string(),
+      city: ogm.string(),
+      contactName: ogm.string(),
+      companyName: ogm.string(),
+      postalCode: ogm.stringOrNull(),
+      fax: ogm.stringOrNull(),
+      region: ogm.stringOrNull(),
+      homePage: ogm.stringOrNull(),
+      products: ogm.manyOut("SUPPLIES", "Product"),
     }),
-    SUPPLIES: def.relationship({}),
-    PART_OF: def.relationship({}),
+    SUPPLIES: ogm.relationship({}),
+    PART_OF: ogm.relationship({}),
   });
 
 export const loadNorthwindExample = async () => {

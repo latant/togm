@@ -15,15 +15,12 @@ import {
   Point,
 } from "neo4j-driver";
 import { z } from "zod";
-import {
-  defineNode,
-  defineRelationship,
-  propertyFactories,
-  referenceFactories,
-} from "./definition";
+import { defineNode, defineRelationship } from "./definition";
+import { propertyFactories } from "./property";
+import { referenceFactories } from "./reference";
 import { loadMoviesExample, moviesGraph } from "./test/movies";
 import { expectValid, useTestDatabase } from "./test/testUtils";
-import { def } from "./togm";
+import { ogm } from "./togm";
 import { readTransaction, writeTransaction } from "./transaction";
 import { bulkUpdate, CreateNode } from "./update";
 import { getKeys } from "./util";
@@ -60,28 +57,28 @@ describe("definition tests", () => {
   it("should create valid reference factories", () => {
     const r = referenceFactories();
     expect(getKeys(r).length).toBe(3 * 3);
-    expect(r.manyIn("HAS_ADDRESS", "Address").direction).toBe("incoming");
+    expect(r.manyIn("HAS_ADDRESS", "Address").direction).toBe("in");
     expect(r.manyIn("HAS_ADDRESS", "Address").label).toBe("Address");
     expect(r.manyIn("HAS_ADDRESS", "Address").relationshipType).toBe("HAS_ADDRESS");
     expect(r.manyIn("HAS_ADDRESS", "Address").type).toBe("reference");
     expect(r.manyIn("HAS_ADDRESS", "Address").multiplicity).toBe("many");
-    expect(r.oneOut("HAS_ADDRESS", "Address").direction).toBe("outgoing");
+    expect(r.oneOut("HAS_ADDRESS", "Address").direction).toBe("out");
     expect(r.oneOut("HAS_ADDRESS", "Address").type).toBe("reference");
-    expect(r.oneOut("HAS_ADDRESS", "Address").multiplicity).toBe("single");
+    expect(r.oneOut("HAS_ADDRESS", "Address").multiplicity).toBe("one");
   });
 
   it("should properly handle any type of property", async () => {
-    const graph = def.graph({
-      Node: def.node({
-        stringField: def.string(),
-        numberField: def.number(),
-        booleanField: def.boolean(),
-        durationField: def.duration(),
-        localTimeField: def.localTime(),
-        dateField: def.date(),
-        localDateTimeField: def.localDateTime(),
-        dateTimeField: def.dateTime(),
-        pointField: def.point(),
+    const graph = ogm.graph({
+      Node: ogm.node({
+        stringField: ogm.string(),
+        numberField: ogm.number(),
+        booleanField: ogm.boolean(),
+        durationField: ogm.duration(),
+        localTimeField: ogm.localTime(),
+        dateField: ogm.date(),
+        localDateTimeField: ogm.localDateTime(),
+        dateTimeField: ogm.dateTime(),
+        pointField: ogm.point(),
       }),
     });
     const creations: CreateNode[] = [];
@@ -123,9 +120,9 @@ describe("definition tests", () => {
   });
 
   it("should properly coerce bigint to number", async () => {
-    const graph = def.graph({
-      Node: def.node({
-        numberField: def.number(),
+    const graph = ogm.graph({
+      Node: ogm.node({
+        numberField: ogm.number(),
       }),
     });
     const creations: CreateNode[] = [];
@@ -151,15 +148,15 @@ describe("definition tests", () => {
   });
 
   it("should handle optional references properly", async () => {
-    const graph = def.graph({
-      User: def.node({
-        phone: def.optOut("HAS_PHONE", "Phone"),
+    const graph = ogm.graph({
+      User: ogm.node({
+        phone: ogm.optOut("HAS_PHONE", "Phone"),
       }),
-      Phone: def.node({
-        value: def.string(),
-        user: def.oneIn("HAS_PHONE", "User"),
+      Phone: ogm.node({
+        value: ogm.string(),
+        user: ogm.oneIn("HAS_PHONE", "User"),
       }),
-      HAS_PHONE: def.relationship({}),
+      HAS_PHONE: ogm.relationship({}),
     });
     await writeTransaction(driver, async () => {
       const u0 = graph.create.User({});
@@ -208,7 +205,6 @@ describe("definition tests", () => {
         title: { "=": "Something" },
       })
     );
-    expect(updatedMovie).toBeTruthy();
     expect(updatedMovie?.tagline).toBe("awesome tagline");
     expect(updatedMovie?.title).toBe("Something");
     expect(updatedMovie?.released).toBe(movie?.released);

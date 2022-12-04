@@ -102,19 +102,19 @@ describe("test type-safe graph selections", () => {
 
   it("should throw an exception when an entity reference is invalid", async () => {
     const graph = northwindGraph();
-    graph.definition.Product.members.category.label = "InvalidLabel" as any;
+    graph.definition.nodes.Product.references.category.label = "InvalidLabel" as any;
     await expectException(() => graph.select.Product({ category: {} }));
   });
 
   it("should throw an exception when a relationship type in a reference is a label", async () => {
     const graph = northwindGraph();
-    graph.definition.Product.members.category.relationshipType = "Supplier" as any;
+    graph.definition.nodes.Product.references.category.relationshipType = "Supplier" as any;
     await expectException(() => graph.select.Product({ category: {} }));
   });
 
   it("should throw an exception when a label in a reference is a relationship type", async () => {
     const graph = northwindGraph();
-    graph.definition.Product.members.category.label = "SUPPLIES" as any;
+    graph.definition.nodes.Product.references.category.label = "SUPPLIES" as any;
     await expectException(() => graph.select.Product({ category: {} }));
   });
 

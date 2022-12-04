@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Integer, Transaction } from "neo4j-driver";
 import { AS, CREATE, identifier, MATCH, parameter, RETURN, SET, UNWIND, WHERE } from "./cypher";
-import { Id } from "./definition";
 import { getTransaction, runQuery } from "./transaction";
 import { error, getValues } from "./util";
+
+export type Id = { id?: number } | number;
 
 export type Command =
   | CreateNode

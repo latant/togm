@@ -2,6 +2,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // FLATTEN
 
+import { z } from "zod";
+
 type IsFunction<T, R, Fallback = T> = T extends (...args: any[]) => any ? R : Fallback;
 
 // Returns R if T is an object, otherwise returns Fallback
@@ -74,6 +76,13 @@ export type DeepStrict<T, U> = Strict<T, U> & {
 export type SameKeys<A, B> = {
   [K in keyof A]: K extends keyof B ? B[K] : never;
 } & B;
+
+export type PickValuesExtend<T, V> = {
+  [K in keyof T as T[K] extends V ? K : never]: T[K] extends V ? T[K] : never;
+};
+
+export const ZodType = z.custom<z.ZodType>((arg) => (arg as any)?._def);
+export const ZodObject = z.custom<z.ZodObject<any>>((arg) => (arg as any)?.partial);
 
 export const error = (msg: string): never => {
   throw new Error(msg);

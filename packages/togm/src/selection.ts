@@ -1,231 +1,251 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Transaction } from "neo4j-driver";
-import { z, ZodType } from "zod";
-import { Condition, nodeMatchProvider } from "./condition";
-import { CypherNode, identifier, Identifier, MapEntry } from "./cypher";
-import {
-  applyMultiplicity,
-  coercedTypes,
-  EntityProp,
-  EntityRef,
-  Graph,
-  GraphDef,
-  NodeDef,
-  Property,
-  Reference,
-  RefKey,
-  RelDef,
-  WithMultiplicity,
-} from "./definition";
+import { z } from "zod";
+import { NodeCondition, nodeMatchProvider, ReferenceCondition } from "./condition";
+import { CypherNode, Identifier, identifier, MapEntry } from "./cypher";
+import { GraphDefinition, NodeDefinition, Nodes, Relationships } from "./definition";
+import { coercedPropertyZodTypes } from "./property";
 import { MatchProvider, NodeExpressionProvider, runReadQuery } from "./read";
-import { error } from "./util";
+import { Reference, WithMultiplicity } from "./reference";
+import { getValues } from "./util";
 
-export type Selection<
-  G extends GraphDef,
-  L extends keyof G,
-  Q extends SelectionDef<G, L>
-> = SelectionImpl<SelectionResultNode<G, L, null, Q>, G[L] extends NodeDef ? G[L] : never>;
+type Entities = {
+  nodes: Nodes;
+  relationships: Relationships;
+};
 
-type SelectionImpl<T, N extends NodeDef> = {
-  graphDefinition: GraphDef;
-  label: string;
-  root: SelectionNode;
+export type NodeSelectionDefinitionMembers<E extends Entities, N extends NodeDefinition> = {
+  [K in keyof N["references"]]?: ReferenceSelectionDefinitionMembers<E, N["references"][K]>;
+};
+
+type ReferenceSelectionDefinitionMembers<
+  E extends Entities,
+  R extends Reference
+> = NodeSelectionDefinitionMembers<E, E["nodes"][R["label"]]> & {
+  $where?: ReferenceCondition<
+    E["nodes"][R["label"]]["properties"],
+    E["relationships"][R["relationshipType"]]["properties"]
+  >;
+};
+
+export type NodeSelectionTypes<E extends Entities> = {
+  [L in keyof E["nodes"]]: z.ZodType<NodeSelectionDefinitionMembers<E, E["nodes"][L]>>;
+};
+
+export const NodeSelectionTypes = <E extends Entities>(entities: E) => {
+  const result = {} as { [key: string]: z.ZodType };
+  for (const l in entities.nodes) {
+    result[l] = z
+      .strictObject(
+        Object.fromEntries(
+          Object.entries(entities.nodes[l].references).map(([k, v]) => [
+            k,
+            z.lazy(() => result[v.label]),
+          ])
+        )
+      )
+      .partial();
+  }
+  return result as NodeSelectionTypes<E>;
+};
+
+export type NodeSelectionDefinition<
+  E extends Entities = Entities,
+  N extends NodeDefinition = NodeDefinition,
+  M = any
+> = {
+  node: N;
+  references: {
+    [K in keyof M]: K extends keyof N["references"]
+      ? ReferenceSelectionDefinition<E, N["references"][K], M[K]>
+      : never;
+  };
+};
+
+type ReferenceSelectionDefinition<
+  E extends Entities = Entities,
+  R extends Reference = Reference,
+  M = any
+> = NodeSelectionDefinition<E, E["nodes"][R["label"]], M> & {
+  reference: R;
+  relationship: E["relationships"][R["relationshipType"]];
+};
+
+export const defineNodeSelection = <E extends Entities, N extends NodeDefinition, M>(
+  entities: E,
+  node: N,
+  members: M
+): NodeSelectionDefinition<E, N, M> => {
+  const references = {} as any;
+  for (const k in members) {
+    references[k] = defineReferenceSelection(entities, node.references[k], members[k]);
+  }
+  return { node, references };
+};
+
+const defineReferenceSelection = <E extends Entities, R extends Reference, M>(
+  entities: E,
+  reference: R,
+  members: M
+): ReferenceSelectionDefinition<E, R, M> => {
+  const references = {} as any;
+  const node = entities.nodes[reference.label] as any;
+  const relationship = entities.relationships[reference.relationshipType] as any;
+  for (const k in members) {
+    references[k] = defineReferenceSelection(entities, node.references[k], members[k]);
+  }
+  return { node, references, reference, relationship };
+};
+
+export type NodeSelection<S extends NodeSelectionDefinition = NodeSelectionDefinition> =
+  NodeSelectionImpl<S, NodeSelectionResult<S>>;
+
+type NodeSelectionImpl<S extends NodeSelectionDefinition = NodeSelectionDefinition, T = unknown> = {
+  definition: S;
   match: (p: MatchProvider, t?: Transaction) => Promise<T[]>;
   matchOne: (p: MatchProvider, t?: Transaction) => Promise<T | undefined>;
-  find: (f: Condition<N>, t?: Transaction) => Promise<T[]>;
-  findOne: (f: Condition<N>, t?: Transaction) => Promise<T | undefined>;
-} & NodeExpressionProvider<ZodType<T>>;
-
-type NestedSelectionDef<G extends GraphDef, R extends Reference> = SelectionDef<G, R["label"]>;
-
-export type SelectionDef<G extends GraphDef, L extends keyof G> = G[L]["type"] extends "node"
-  ? {
-      [K in keyof G[L]["members"] as RefKey<
-        G[L]["members"],
-        K
-      >]?: G[L]["members"][K] extends Reference ? NestedSelectionDef<G, G[L]["members"][K]> : never;
-    }
-  : never;
-
-type SelectionResultKeys<G extends GraphDef, L extends keyof G, T extends keyof G | null, Q> =
-  | "$id"
-  | (EntityRef<G[L]["members"]> & keyof Q)
-  | EntityProp<G[L]["members"]>
-  | (T extends string ? "$rid" | keyof G[T]["members"] : never);
-
-type SelectionResultNode<G extends GraphDef, L extends keyof G, T extends keyof G | null, Q> = {
-  [K in SelectionResultKeys<G, L, T, Q>]: K extends keyof G[L]["members"]
-    ? G[L]["members"][K] extends Property
-      ? z.infer<G[L]["members"][K]["zodType"]>
-      : G[L]["members"][K] extends Reference
-      ? K extends keyof Q
-        ? WithMultiplicity<
-            G[L]["members"][K]["multiplicity"],
-            SelectionResultNode<
-              G,
-              G[L]["members"][K]["label"],
-              G[L]["members"][K]["relationshipType"],
-              Q[K]
-            >
-          >
-        : never
-      : never
-    : T extends keyof G
-    ? K extends keyof G[T]["members"]
-      ? G[T]["members"][K] extends Property
-        ? z.infer<G[T]["members"][K]["zodType"]>
-        : never
-      : never
-    : K extends "$rid"
-    ? number
-    : K extends "$id"
-    ? number
-    : never;
+  find: (f: NodeCondition<S["node"]["properties"]>, t?: Transaction) => Promise<T[]>;
+  findOne: (f: NodeCondition<S["node"]["properties"]>, t?: Transaction) => Promise<T | undefined>;
 };
 
-type SelectionNode = { [key: string]: SelectionNode };
-
-type EntityVar = {
-  kind: string;
-  var: Identifier;
+export type NodeSelectionResult<S extends NodeSelectionDefinition> = { $id: number } & {
+  [K in keyof S["references"]]: ReferenceSelectionResult<S["references"][K]>;
+} & {
+  [K in Exclude<keyof S["node"]["properties"], keyof S["references"]>]: z.infer<
+    S["node"]["properties"][K]["zodType"]
+  >;
 };
 
-const requireEntity = (graph: Graph, kind: string): NodeDef | RelDef => {
-  return graph.definition[kind] ?? error(`Entity not found: ${kind}`);
-};
-
-const requireNode = (graph: Graph, label: string) => {
-  const entity = requireEntity(graph, label);
-  if (entity.type !== "node") error(`Entity not a node: ${label}`);
-  return entity as NodeDef;
-};
-
-const requireRelationship = (graph: Graph, type: string) => {
-  const entity = requireEntity(graph, type);
-  if (entity.type !== "relationship") error(`Entity not a relationship: ${type}`);
-  return entity as RelDef;
-};
-
-const requireRef = (lbl: string, def: NodeDef, k: string) => {
-  const member = def.members[k] ?? error(`Node member not found: ${lbl}.${k}`);
-  if (member.type !== "reference") error(`Member not reference: ${lbl}.${k}`);
-  return member as Reference;
-};
-
-// refs > ids > nodeProps > relProps
-export const selectionType = (
-  query: SelectionNode,
-  graph: Graph,
-  label: string,
-  relationshipType?: string
-): ZodType => {
-  const nodeDef = requireNode(graph, label);
-  const relDef =
-    relationshipType &&
-    graph.definition[relationshipType] &&
-    requireRelationship(graph, relationshipType);
-  const fields: { [key: string]: ZodType } = {};
-  if (relDef) {
-    for (const k in relDef.members) {
-      fields[k] = relDef.members[k].zodType;
-    }
+type ReferenceSelectionResult<S extends ReferenceSelectionDefinition> = WithMultiplicity<
+  S["reference"]["multiplicity"],
+  NodeSelectionResult<S> & { $rid: number } & {
+    [K in Exclude<
+      keyof S["relationship"]["properties"],
+      keyof S["node"]["properties"] | keyof S["references"]
+    >]: z.infer<S["relationship"]["properties"][K]["zodType"]>;
   }
-  for (const k in nodeDef.members) {
-    const member = nodeDef.members[k];
-    if (member.type === "property") {
-      fields[k] = member.zodType;
-    }
+>;
+
+const nodeSelectionResultType = (def: NodeSelectionDefinition) => {
+  const fields = {} as { [key: string]: z.ZodType };
+  for (const k in def.node.properties) {
+    fields[k] = def.node.properties[k].zodType;
   }
-  fields.$id = coercedTypes.number;
-  if (relationshipType) fields.$rid = coercedTypes.number;
-  for (const k in query) {
-    const ref = requireRef(label, nodeDef, k);
-    const nestedType = selectionType(query[k], graph, ref.label, ref.relationshipType);
-    fields[k] = applyMultiplicity(nestedType, ref.multiplicity);
+  for (const k in def.references) {
+    fields[k] = referenceSelectionResultType(def.references[k]);
   }
+  fields.$id = coercedPropertyZodTypes.number;
   return z.strictObject(fields);
 };
 
-export const selectionCypher = (
-  query: SelectionNode,
-  graph: Graph,
-  node: EntityVar,
-  rel?: EntityVar
-): CypherNode => {
-  const nodeDef = graph.definition[node.kind] as NodeDef;
-  const relDef = rel && (graph.definition[rel.kind] as RelDef);
+const referenceSelectionResultType = (def: ReferenceSelectionDefinition) => {
+  const fields = {} as { [key: string]: z.ZodType };
+  for (const k in def.relationship.properties) {
+    fields[k] = def.relationship.properties[k].zodType;
+  }
+  for (const k in def.node.properties) {
+    fields[k] = def.node.properties[k].zodType;
+  }
+  for (const k in def.references) {
+    fields[k] = referenceSelectionResultType(def.references[k]);
+  }
+  fields.$id = coercedPropertyZodTypes.number;
+  fields.$rid = coercedPropertyZodTypes.number;
+  const type = z.strictObject(fields);
+  const m = def.reference.multiplicity;
+  return m === "many" ? type.array() : m === "opt" ? type.nullable() : type;
+};
+
+const nodeSelectionCypher = (def: NodeSelectionDefinition, node: Identifier): CypherNode => {
   const entries: { [key: string]: MapEntry } = {};
-  if (relDef) {
-    for (const k in relDef.members) {
-      entries[k] = [identifier(k), [rel.var, ".", identifier(k)]];
-    }
+  for (const k in def.node.properties) {
+    entries[k] = [identifier(k), [node, ".", identifier(k)]];
   }
-  for (const k in nodeDef.members) {
-    const member = nodeDef.members[k];
-    if (member.type === "property") {
-      entries[k] = [identifier(k), [node.var, ".", identifier(k)]];
-    }
-  }
-  entries["$id"] = [identifier("$id"), ["id(", node.var, ")"]];
-  if (rel) entries["$rid"] = [identifier("$rid"), ["id(", rel.var, ")"]];
-  for (const k in query) {
-    const ref = nodeDef.members[k] as Reference;
+  for (const k in def.references) {
+    const reference = def.references[k].reference;
     const targetNode = identifier();
     const targetRel = identifier();
     entries[k] = [
       identifier(k),
       [
         "[",
-        ["(", node.var, ")"],
-        ref.direction === "incoming" && "<",
-        ["-[", targetRel, ":", identifier(ref.relationshipType), "]-"],
-        ref.direction === "outgoing" && ">",
-        ["(", targetNode, ":", identifier(ref.label), ")"],
+        ["(", node, ")"],
+        reference.direction === "in" && "<",
+        ["-[", targetRel, ":", identifier(reference.relationshipType), "]-"],
+        reference.direction === "out" && ">",
+        ["(", targetNode, ":", identifier(reference.label), ")"],
         "|",
-        selectionCypher(
-          query[k],
-          graph,
-          { kind: ref.label, var: targetNode },
-          { kind: ref.relationshipType, var: targetRel }
-        ),
+        referenceSelectionCypher(def.references[k], targetRel, targetNode),
         "]",
-        ref.multiplicity !== "many" && "[0]",
+        reference.multiplicity !== "many" && "[0]",
       ],
     ];
   }
-  return { type: "map", map: Object.values(entries) };
+  entries.$id = [identifier("$id"), ["id(", node, ")"]];
+  return { type: "map", map: getValues(entries) };
 };
 
-export const selection = (
-  root: SelectionNode,
-  graph: Graph,
-  label: string
-): SelectionImpl<any, any> => {
+const referenceSelectionCypher = (
+  def: ReferenceSelectionDefinition,
+  relationship: Identifier,
+  node: Identifier
+): CypherNode => {
+  const entries: { [key: string]: MapEntry } = {};
+  for (const k in def.relationship.properties) {
+    entries[k] = [identifier(k), [relationship, ".", identifier(k)]];
+  }
+  for (const k in def.node.properties) {
+    entries[k] = [identifier(k), [node, ".", identifier(k)]];
+  }
+  for (const k in def.references) {
+    const reference = def.references[k].reference;
+    const targetNode = identifier();
+    const targetRel = identifier();
+    entries[k] = [
+      identifier(k),
+      [
+        "[",
+        ["(", node, ")"],
+        reference.direction === "in" && "<",
+        ["-[", targetRel, ":", identifier(reference.relationshipType), "]-"],
+        reference.direction === "out" && ">",
+        ["(", targetNode, ":", identifier(reference.label), ")"],
+        "|",
+        referenceSelectionCypher(def.references[k], targetRel, targetNode),
+        "]",
+        reference.multiplicity !== "many" && "[0]",
+      ],
+    ];
+  }
+  entries.$id = [identifier("$id"), ["id(", node, ")"]];
+  entries.$rid = [identifier("$rid"), ["id(", relationship, ")"]];
+  return { type: "map", map: getValues(entries) };
+};
+
+export const createNodeSelection = (
+  graph: GraphDefinition,
+  label: string,
+  node: NodeDefinition,
+  members: any
+): NodeSelection => {
+  const def = defineNodeSelection(graph, node, members);
   const exp: NodeExpressionProvider<any> = {
     labels: [label],
     cypher(n) {
-      return selectionCypher(root, graph, { kind: label, var: n });
+      return nodeSelectionCypher(def, n);
     },
-    type: selectionType(root, graph, label),
+    type: nodeSelectionResultType(def),
   };
   return {
-    ...exp,
-    graphDefinition: graph.definition,
-    label,
-    root,
+    definition: def,
     match: async (p, t) => runReadQuery(p, exp, t),
     matchOne: async (p, t) => {
       const result = await runReadQuery(p, exp, t);
       return result[0];
     },
-    find: async (c, t) =>
-      runReadQuery(nodeMatchProvider(label, requireNode(graph, label), c), exp, t),
+    find: async (c, t) => runReadQuery(nodeMatchProvider(label, node, c), exp, t),
     findOne: async (c, t) => {
-      const result = await runReadQuery(
-        nodeMatchProvider(label, requireNode(graph, label), c),
-        exp,
-        t
-      );
+      const result = await runReadQuery(nodeMatchProvider(label, node, c), exp, t);
       return result[0];
     },
   };
