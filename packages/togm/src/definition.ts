@@ -2,7 +2,7 @@ import { z } from "zod";
 import { Property, zProperty } from "./property";
 import { Reference, zReference } from "./reference";
 import { nodeSelectionTypes } from "./selection";
-import { PickValuesExtend, zZodObject, zZodType } from "./util";
+import { error, PickValuesExtend, zZodObject, zZodType } from "./util";
 
 const Name = z.string().refine((arg) => !arg.startsWith("$"), { message: "Starting with '$'" });
 
@@ -74,7 +74,7 @@ const graphDefRels = <M extends GraphMembers>(members: M) =>
   ) as GraphDefRels<M>;
 
 const propertiesZodType = (props: Properties) =>
-  z.object(Object.fromEntries(Object.entries(props).map(([k, v]) => [k, v.zodType])) as any);
+  z.object(Object.fromEntries(Object.entries(props).map(([k, v]) => [k, v.zodType])));
 
 export const defineNode = <M extends NodeMembers>(members: M) => {
   const parsedMembers = zNodeMembers.parse(members) as M;
@@ -102,6 +102,14 @@ export const defineGraph = <M extends GraphMembers>(members: M) => {
   const nodes = graphDefNodes(parsedMembers);
   const relationships = graphDefRels(parsedMembers);
   const selectionTypes = nodeSelectionTypes({ nodes, relationships });
-  // TODO: schema integrity validation
+  for (const l in nodes) {
+    const node = nodes[l];
+    for (const r in node.references) {
+      const reference = node.references[r];
+      if (!(nodes as Nodes)[reference.label]) {
+        error(`Node '${reference.label}' not found for reference ${l}.${r}`);
+      }
+    }
+  }
   return { nodes, relationships, selectionTypes } satisfies GraphDefinition;
 };
