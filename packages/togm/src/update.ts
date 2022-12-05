@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Integer, Transaction } from "neo4j-driver";
 import { AS, CREATE, identifier, MATCH, parameter, RETURN, SET, UNWIND, WHERE } from "./cypher";
 import { getTransaction, runQuery } from "./transaction";
@@ -17,7 +16,7 @@ export type Command =
 export type CreateNode = {
   type: "createNode";
   labels?: string[];
-  properties?: { [key: string]: any };
+  properties?: { [key: string]: unknown };
   id?: number;
 };
 
@@ -26,20 +25,20 @@ export type CreateRelationship = {
   relationshipType: string;
   start: Id;
   end: Id;
-  properties?: { [key: string]: any };
+  properties?: { [key: string]: unknown };
   id?: number;
 };
 
 export type UpdateNode = {
   type: "updateNode";
   node: Id;
-  properties: { [key: string]: any };
+  properties: { [key: string]: unknown };
 };
 
 export type UpdateRelationship = {
   type: "updateRelationship";
   relationship: Id;
-  properties: { [key: string]: any };
+  properties: { [key: string]: unknown };
 };
 
 export type DeleteRelationship = {

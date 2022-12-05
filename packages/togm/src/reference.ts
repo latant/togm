@@ -8,9 +8,7 @@ export type WithMultiplicity<M extends Multiplicity, T> = M extends "one"
   ? T
   : M extends "many"
   ? T[]
-  : M extends "opt"
-  ? T | null
-  : never;
+  : T | null;
 export const zWithMultiplicity = (multiplicity: Multiplicity, type: z.ZodType): z.ZodType => {
   if (multiplicity === "many") {
     return type.array();

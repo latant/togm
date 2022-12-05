@@ -155,5 +155,5 @@ export const propertyFactories = () => {
 };
 
 export type PropRecord<MP extends { [key: string]: Property }> = {
-  [P in keyof MP]: MP[P] extends Property ? z.infer<MP[P]["zodType"]> : never;
+  [P in keyof MP]: z.infer<MP[P]["zodType"]>;
 };

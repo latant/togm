@@ -79,9 +79,11 @@ export type NodeSelectionDefinition<
 > = {
   node: N;
   references: {
-    [K in keyof M]: K extends keyof N["references"]
-      ? ReferenceSelectionDefinition<E, N["references"][K], M[K]>
-      : never;
+    [K in keyof M & keyof N["references"]]: ReferenceSelectionDefinition<
+      E,
+      N["references"][K],
+      M[K]
+    >;
   };
 };
 
