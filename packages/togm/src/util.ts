@@ -49,8 +49,8 @@ export type PascalizeKeys<T> = {
   [K in keyof T as Pascalize<K>]: T[K];
 };
 
-export const capitalize = (str: any) => {
-  return str.charAt(0).toUpperCase() + str.slice(1);
+export const capitalize = <S extends string>(str: S) => {
+  return (str.charAt(0).toUpperCase() + str.slice(1)) as Capitalize<S>;
 };
 
 // REST
@@ -81,8 +81,8 @@ export type PickValuesExtend<T, V> = {
   [K in keyof T as T[K] extends V ? K : never]: T[K] extends V ? T[K] : never;
 };
 
-export const ZodType = z.custom<z.ZodType>((arg) => (arg as any)?._def);
-export const ZodObject = z.custom<z.ZodObject<any>>((arg) => (arg as any)?.partial);
+export const zZodType = z.custom<z.ZodType>((arg) => (arg as any)?._def);
+export const zZodObject = z.custom<z.ZodObject<any>>((arg) => (arg as any)?.partial);
 
 export const error = (msg: string): never => {
   throw new Error(msg);

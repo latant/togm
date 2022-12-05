@@ -11,7 +11,7 @@ export type WithMultiplicity<M extends Multiplicity, T> = M extends "one"
   : M extends "opt"
   ? T | null
   : never;
-export const WithMultiplicity = (multiplicity: Multiplicity, type: z.ZodType): z.ZodType => {
+export const zWithMultiplicity = (multiplicity: Multiplicity, type: z.ZodType): z.ZodType => {
   if (multiplicity === "many") {
     return type.array();
   }
@@ -21,15 +21,15 @@ export const WithMultiplicity = (multiplicity: Multiplicity, type: z.ZodType): z
   return type;
 };
 
-export type Direction = z.infer<typeof Direction>;
-export const Direction = z.enum(["out", "in", "undirected"]);
+export type Direction = z.infer<typeof zDirection>;
+export const zDirection = z.enum(["out", "in", "undirected"]);
 
-export type Reference = z.infer<typeof Reference>;
-export const Reference = z.object({
+export type Reference = z.infer<typeof zReference>;
+export const zReference = z.object({
   type: z.literal("reference"),
   relationshipType: z.string(),
   label: z.string(),
-  direction: Direction,
+  direction: zDirection,
   multiplicity: Multiplicity,
 });
 
@@ -48,10 +48,10 @@ export type ReferenceFactories = {
   };
 };
 
-export const referenceFactories = (): PascalizeKeys<Flatten1<ReferenceFactories>> => {
-  const result = {} as any;
+export const referenceFactories = () => {
+  const result = {} as { [key: string]: (relType: string, label: string) => Reference };
   for (const m of getKeys(Multiplicity.Values)) {
-    for (const d of getKeys(Direction.Values)) {
+    for (const d of getKeys(zDirection.Values)) {
       result[`${m}${capitalize(d)}`] = (relType: string, label: string) => ({
         type: "reference",
         relationshipType: relType,
@@ -61,5 +61,5 @@ export const referenceFactories = (): PascalizeKeys<Flatten1<ReferenceFactories>
       });
     }
   }
-  return result;
+  return result as PascalizeKeys<Flatten1<ReferenceFactories>>;
 };

@@ -14,10 +14,10 @@ import {
   Point,
 } from "neo4j-driver";
 import { z } from "zod";
-import { capitalize, Flatten2, getKeys, PascalizeKeys, ZodType } from "./util";
+import { capitalize, Flatten2, getKeys, PascalizeKeys, zZodType } from "./util";
 
-export type PropertyType = z.infer<typeof PropertyType>;
-export const PropertyType = z.enum([
+export type PropertyType = z.infer<typeof zPropertyType>;
+export const zPropertyType = z.enum([
   "string",
   "number",
   "boolean",
@@ -29,37 +29,54 @@ export const PropertyType = z.enum([
   "point",
 ]);
 
-export type PropertyCardinality = z.infer<typeof PropertyCardinality>;
-export const PropertyCardinality = z.enum(["array", ""]);
+export type PropertyCardinality = z.infer<typeof zPropertyCardinality>;
+export const zPropertyCardinality = z.enum(["array", ""]);
 
 type PropTypeStep1<T, A extends boolean> = A extends true ? T[] : T;
 type PropTypeStep2<T, N extends boolean> = N extends true ? null | T : T;
-export type Property<T = any, A extends boolean = boolean, N extends boolean = boolean> = {
+export type Property<
+  P extends PropertyType = PropertyType,
+  N extends boolean = boolean,
+  A extends boolean = boolean,
+  T = any
+> = {
   type: "property";
-  propertyType: PropertyType;
+  propertyType: P;
   nullable: N;
   array: A;
   zodType: z.ZodType<PropTypeStep2<PropTypeStep1<T, A>, N>>;
 };
-export const Property: z.ZodType<Property> = z.object({
+export const zProperty: z.ZodType<Property> = z.object({
   type: z.literal("property"),
-  propertyType: PropertyType,
+  propertyType: zPropertyType,
   nullable: z.boolean(),
   array: z.boolean(),
-  zodType: ZodType,
+  zodType: zZodType,
 });
 
-export const propertyZodTypes = {
+export type TSProperty = {
+  string: string;
+  number: number;
+  boolean: boolean;
+  duration: Duration<number>;
+  localTime: LocalTime<number>;
+  date: Date<number>;
+  localDateTime: LocalDateTime<number>;
+  dateTime: DateTime<number>;
+  point: Point<number>;
+};
+
+export const propertyZodTypes: { [K in PropertyType]: z.ZodType<TSProperty[K]> } = {
   string: z.string(),
   number: z.number(),
   boolean: z.boolean(),
-  duration: z.custom<Duration<number>>((v: any) => isDuration(v)),
-  localTime: z.custom<LocalTime<number>>((v: any) => isLocalTime(v)),
-  date: z.custom<Date<number>>((v: any) => isDate(v)),
-  localDateTime: z.custom<LocalDateTime<number>>((v: any) => isLocalDateTime(v)),
-  dateTime: z.custom<DateTime<number>>((v: any) => isDateTime(v)),
-  point: z.custom<Point<number>>((v: any) => isPoint(v)),
-} satisfies { [K in PropertyType]: z.ZodType };
+  duration: z.custom((v: any) => isDuration(v)),
+  localTime: z.custom((v: any) => isLocalTime(v)),
+  date: z.custom((v: any) => isDate(v)),
+  localDateTime: z.custom((v: any) => isLocalDateTime(v)),
+  dateTime: z.custom((v: any) => isDateTime(v)),
+  point: z.custom((v: any) => isPoint(v)),
+};
 
 export const propertyTypeCoercions = {
   string: (t) => t,
@@ -85,7 +102,7 @@ export const propertyTypeCoercions = {
 
 export const coercedPropertyZodTypes = Object.fromEntries(
   Object.entries(propertyZodTypes).map(([k, t]) => [k, (propertyTypeCoercions as any)[k](t)])
-) as { [K in PropertyType]: z.ZodType };
+) as { [K in PropertyType]: z.ZodType<TSProperty[K]> };
 
 const propCardinalities = {
   array: true,
@@ -103,16 +120,17 @@ export type PropertyFactories = {
       [N in keyof typeof propNullabilities]: <T extends z.infer<typeof propertyZodTypes[P]>>(
         type?: z.ZodType<T>
       ) => Property<
-        unknown extends T ? z.infer<typeof propertyZodTypes[P]> : T,
+        P,
+        typeof propNullabilities[N],
         typeof propCardinalities[C],
-        typeof propNullabilities[N]
+        unknown extends T ? z.infer<typeof propertyZodTypes[P]> : T
       >;
     };
   };
 };
 
-export const propertyFactories = (): PascalizeKeys<Flatten2<PropertyFactories>> => {
-  const result = {} as any;
+export const propertyFactories = () => {
+  const result = {} as { [key: string]: (type: z.ZodType) => Property };
   for (const p of getKeys(propertyZodTypes)) {
     for (const c of getKeys(propCardinalities)) {
       for (const n of getKeys(propNullabilities)) {
@@ -133,7 +151,7 @@ export const propertyFactories = (): PascalizeKeys<Flatten2<PropertyFactories>> 
       }
     }
   }
-  return result;
+  return result as PascalizeKeys<Flatten2<PropertyFactories>>;
 };
 
 export type PropRecord<MP extends { [key: string]: Property }> = {

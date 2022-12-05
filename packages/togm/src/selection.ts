@@ -1,8 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Transaction } from "neo4j-driver";
 import { z } from "zod";
-import { NodeCondition, nodeMatchProvider, ReferenceCondition } from "./condition";
-import { CypherNode, Identifier, identifier, MapEntry } from "./cypher";
+import {
+  conditionCypher,
+  NodeCondition,
+  nodeMatchProvider,
+  ReferenceCondition,
+  zReferenceCondition,
+} from "./condition";
+import { CypherNode, Identifier, identifier, MapEntry, WHERE } from "./cypher";
 import { GraphDefinition, NodeDefinition, Nodes, Relationships } from "./definition";
 import { coercedPropertyZodTypes } from "./property";
 import { MatchProvider, NodeExpressionProvider, runReadQuery } from "./read";
@@ -32,19 +38,36 @@ export type NodeSelectionTypes<E extends Entities> = {
   [L in keyof E["nodes"]]: z.ZodType<NodeSelectionDefinitionMembers<E, E["nodes"][L]>>;
 };
 
-export const NodeSelectionTypes = <E extends Entities>(entities: E) => {
-  const result = {} as { [key: string]: z.ZodType };
+export const nodeSelectionTypes = <E extends Entities>(entities: E) => {
+  const refTypes = {} as { [key: string]: { [key: string]: z.ZodType } };
+  const nodeFields = {} as { [key: string]: { [key: string]: z.ZodType } };
   for (const l in entities.nodes) {
-    result[l] = z
-      .strictObject(
-        Object.fromEntries(
-          Object.entries(entities.nodes[l].references).map(([k, v]) => [
-            k,
-            z.lazy(() => result[v.label]),
-          ])
-        )
-      )
-      .partial();
+    const node = entities.nodes[l];
+    nodeFields[l] = {};
+    for (const r in node.references) {
+      const reference = node.references[r];
+      nodeFields[l][r] = z.lazy(() => refTypes[reference.label][r]);
+    }
+  }
+  for (const l in entities.nodes) {
+    const node = entities.nodes[l];
+    refTypes[l] = {};
+    for (const r in node.references) {
+      const reference = node.references[r];
+      refTypes[l][r] = z
+        .strictObject({
+          $where: zReferenceCondition(
+            node.properties,
+            entities.relationships[reference.relationshipType]?.properties ?? {}
+          ),
+          ...nodeFields[reference.label],
+        })
+        .partial();
+    }
+  }
+  const result = {} as { [key: string]: z.ZodType };
+  for (const l in nodeFields) {
+    result[l] = z.strictObject(nodeFields[l]).partial();
   }
   return result as NodeSelectionTypes<E>;
 };
@@ -69,6 +92,7 @@ type ReferenceSelectionDefinition<
 > = NodeSelectionDefinition<E, E["nodes"][R["label"]], M> & {
   reference: R;
   relationship: E["relationships"][R["relationshipType"]];
+  condition?: ReferenceCondition;
 };
 
 export const defineNodeSelection = <E extends Entities, N extends NodeDefinition, M>(
@@ -92,9 +116,11 @@ const defineReferenceSelection = <E extends Entities, R extends Reference, M>(
   const node = entities.nodes[reference.label] as any;
   const relationship = entities.relationships[reference.relationshipType] as any;
   for (const k in members) {
-    references[k] = defineReferenceSelection(entities, node.references[k], members[k]);
+    if (!k.startsWith("$")) {
+      references[k] = defineReferenceSelection(entities, node.references[k], members[k]);
+    }
   }
-  return { node, references, reference, relationship };
+  return { node, references, reference, relationship, condition: (members as any).$where };
 };
 
 export type NodeSelection<S extends NodeSelectionDefinition = NodeSelectionDefinition> =
@@ -197,6 +223,14 @@ const referenceSelectionCypher = (
   for (const k in def.node.properties) {
     entries[k] = [identifier(k), [node, ".", identifier(k)]];
   }
+  const condCypher =
+    def.condition &&
+    conditionCypher(
+      "all",
+      def.condition,
+      { properties: def.node.properties, variable: node },
+      { properties: def.relationship.properties, variable: relationship }
+    );
   for (const k in def.references) {
     const reference = def.references[k].reference;
     const targetNode = identifier();
@@ -210,6 +244,7 @@ const referenceSelectionCypher = (
         ["-[", targetRel, ":", identifier(reference.relationshipType), "]-"],
         reference.direction === "out" && ">",
         ["(", targetNode, ":", identifier(reference.label), ")"],
+        condCypher && [WHERE, condCypher],
         "|",
         referenceSelectionCypher(def.references[k], targetRel, targetNode),
         "]",

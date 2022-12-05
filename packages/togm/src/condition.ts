@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/ban-types */
-import { Date, DateTime, Duration, LocalDateTime, LocalTime } from "neo4j-driver";
 import { z } from "zod";
 import {
   AND,
@@ -19,82 +18,142 @@ import {
   WHERE,
   WITH,
 } from "./cypher";
-import { EntityDefinition, NodeDefinition, Properties } from "./definition";
-import { Property } from "./property";
+import { NodeDefinition, Properties } from "./definition";
+import { coercedPropertyZodTypes, Property, PropertyType, TSProperty } from "./property";
 import { MatchProvider } from "./read";
-import { error } from "./util";
-
-export type NodeCondition<N extends Properties> = All<NodeConditionImpl<N>>;
-
-export type ReferenceCondition<N extends Properties, R extends Properties> = All<
-  ReferenceConditionImpl<R & Omit<N, keyof R>>
->;
-
-type NodeConditionImpl<P extends Properties = Properties> = {
-  [K in keyof P]?: P[K] extends Property ? PropCondition<z.infer<P[K]["zodType"]>> : never;
-} & { $id?: number | number[] };
-
-type ReferenceConditionImpl<P extends Properties> = {
-  [K in keyof P]?: P[K] extends Property ? PropCondition<z.infer<P[K]["zodType"]>> : never;
-} & { $id?: number | number[]; $rid?: number | number[] };
-
-type PropCondition<T> = All<PropConditionImpl<T>>;
-
-type PropConditionImpl<T = any> = { "="?: NonNullable<T> } & (T extends string | null
-  ? StringCondition
-  : {}) &
-  (T extends NumericType | null ? NumericCondition<T> : {}) &
-  (null extends T ? { null?: boolean } : {}) &
-  (T extends (infer E)[] | null ? { contains: E } : {});
-
-type NumericType = number | Duration | LocalTime | Date | LocalDateTime | DateTime;
-
-type StringCondition = {
-  contains?: string;
-  startsWith?: string;
-  endsWith?: string;
-};
-
-type NumericCondition<T> = {
-  "<"?: NonNullable<T>;
-  ">"?: NonNullable<T>;
-  "<="?: NonNullable<T>;
-  ">="?: NonNullable<T>;
-};
 
 type All<T> = T & { $any?: Any<T>; $not?: All<T> };
+
+const zAll = <T extends z.ZodType>(type: T): z.ZodType<All<T>> =>
+  z.lazy(() => type.and(z.object({ $any: zAny(type).optional(), $not: zAll(type).optional() })));
+
 type Any<T> = T & { $all?: All<T>; $not?: All<T> };
+
+const zAny = <T extends z.ZodType>(type: T): z.ZodType<Any<T>> =>
+  type.and(z.object({ $all: zAll(type).optional(), $not: zAll(type).optional() }));
+
+export type NodeCondition<P extends Properties = Properties> = All<SimpleNodeCondition<P>>;
+
+export const zNodeCondition = <P extends Properties>(props: P) => zAll(zSimpleNodeCondition(props));
+
+export type ReferenceCondition<
+  N extends Properties = Properties,
+  R extends Properties = Properties
+> = All<SimpleReferenceCondition<R & Omit<N, keyof R>>>;
+
+export const zReferenceCondition = <N extends Properties, R extends Properties>(
+  nodeProps: N,
+  relProps: R
+) =>
+  zAll(zSimpleReferenceCondition({ ...nodeProps, ...relProps })) as z.ZodType<
+    ReferenceCondition<N, R>
+  >;
+
+type SimpleNodeCondition<P extends Properties = Properties> = {
+  [K in keyof P]?: PropertyCondition<P[K]>;
+} & { $id?: number | number[] };
+
+const zSimpleNodeCondition = <P extends Properties>(props: P) => {
+  const fields = {} as { [key: string]: z.ZodType };
+  for (const k in props) {
+    fields[k] = zPropertyCondition(props[k]);
+  }
+  fields.$id = z.number().or(z.number().array());
+  return z.object(fields).strict().partial() as z.ZodType<SimpleNodeCondition<P>>;
+};
+
+type SimpleReferenceCondition<P extends Properties> = {
+  [K in keyof P]?: PropertyCondition<z.infer<P[K]["zodType"]>>;
+} & { $id?: number | number[]; $rid?: number | number[] };
+
+export const zSimpleReferenceCondition = <P extends Properties>(props: P) => {
+  const fields = {} as { [key: string]: z.ZodType };
+  for (const k in props) {
+    fields[k] = zPropertyCondition(props[k]);
+  }
+  fields.$id = z.number().or(z.number().array());
+  fields.$rid = z.number().or(z.number().array());
+  return z.object(fields).strict().partial() as z.ZodType<SimpleReferenceCondition<P>>;
+};
+
+type PropertyCondition<P extends Property> = All<SimplePropertyCondition<P>>;
+
+const zPropertyCondition = <P extends Property>(property: P) =>
+  zAll(zSimplePropertyCondition(property)) as unknown as z.ZodType<PropertyCondition<P>>;
+
+type SimplePropertyCondition<P extends Property> = Partial<
+  (P["nullable"] extends true ? { null: boolean } : {}) &
+    (P["array"] extends true
+      ? { contains: TSProperty[P["propertyType"]] }
+      : z.infer<PropertyConditionType<P["propertyType"]>>)
+>;
+
+const zSimplePropertyCondition = <P extends Property>(property: P) =>
+  z
+    .object(property.nullable ? { null: z.boolean() } : {})
+    .merge(
+      property.array
+        ? z.object({ null: z.boolean() })
+        : propertyConditionTypes[property.propertyType]
+    )
+    .strict()
+    .partial() as unknown as z.ZodType<SimplePropertyCondition<P>>;
+
+const zStringCondition = z.object({
+  "=": z.string(),
+  contains: z.string(),
+  startsWith: z.string(),
+  endsWith: z.string(),
+});
+
+const zNumericCondition = <T extends PropertyType>(type: T) => {
+  const t = coercedPropertyZodTypes[type];
+  return z.object({ "=": t, "<": t, ">": t, "<=": t, ">=": t });
+};
+
+type PropertyConditionType<P extends PropertyType> = typeof propertyConditionTypes[P];
+
+export const propertyConditionTypes = {
+  string: zStringCondition,
+  number: zNumericCondition("number"),
+  boolean: z.object({ "=": z.boolean() }),
+  duration: zNumericCondition("duration"),
+  localTime: zNumericCondition("localTime"),
+  date: zNumericCondition("date"),
+  localDateTime: zNumericCondition("localDateTime"),
+  dateTime: zNumericCondition("dateTime"),
+  point: z.object({ "=": z.boolean() }),
+};
+
 type Op = "any" | "all";
 
 export const nodeMatchProvider = (
   label: string,
   node: NodeDefinition,
-  cond: NodeConditionImpl
+  cond: unknown
 ): MatchProvider => {
   return {
     cypher(n) {
-      const condCyp = entityConditionCypher("all", cond, {
-        kind: label,
-        definition: node,
+      const condCypher = conditionCypher("all", cond, {
+        properties: node.properties,
         variable: n,
       });
-      return [MATCH, "(", n, ":", identifier(label), ")", condCyp && [WHERE, condCyp]];
+      return [MATCH, "(", n, ":", identifier(label), ")", condCypher && [WHERE, condCypher]];
     },
   };
 };
 
 export type Entity = {
-  kind: string;
-  definition: EntityDefinition;
+  properties: Properties;
   variable: Identifier;
 };
 
-const entityConditionEmitters: {
+const condEmitters: {
   [key: string]: (value: any, node: Entity, relationship?: Entity) => CypherNode;
 } = {
-  $all: (v, n, r) => entityConditionCypher("all", v, n, r),
-  $any: (v, n, r) => entityConditionCypher("any", v, n, r),
-  $not: (v, n, r) => ["(", NOT, entityConditionCypher("all", v, n, r), ")"],
+  $all: (v, n, r) => conditionCypher("all", v, n, r),
+  $any: (v, n, r) => conditionCypher("any", v, n, r),
+  $not: (v, n, r) => ["(", NOT, conditionCypher("all", v, n, r), ")"],
   $id: (v, n, r) => [
     "(id(",
     n.variable,
@@ -103,13 +162,17 @@ const entityConditionEmitters: {
     parameter(undefined, v),
     ")",
   ],
-  $rid: (v, n, r) =>
-    r
-      ? ["(id(", r.variable, ")", typeof v === "number" ? " = " : IN, parameter(undefined, v), ")"]
-      : error("$rid condition is only available in reference conditions"),
+  $rid: (v, n, r) => [
+    "(id(",
+    r!.variable,
+    ")",
+    typeof v === "number" ? " = " : IN,
+    parameter(undefined, v),
+    ")",
+  ],
 };
 
-export const entityConditionCypher = (
+export const conditionCypher = (
   op: Op,
   condition: any,
   node: Entity,
@@ -117,27 +180,20 @@ export const entityConditionCypher = (
 ): CypherNode => {
   const result: CypherNode[] = [];
   for (const k in condition) {
-    const emitter = entityConditionEmitters[k];
-    if (!emitter) {
-      const entity = node.definition.properties[k]
-        ? node
-        : relationship?.definition?.properties?.[k]
-        ? relationship
-        : undefined;
-      if (entity) {
-        const property = entity.definition.properties[k];
-        result.push(propConditionCypher("all", k, property, condition[k], entity.variable));
-      } else {
-        error(`Property not found in ${[node, relationship].filter((e) => e).join(" or ")}: ${k}`);
-      }
-    } else {
+    const emitter = condEmitters[k];
+    if (emitter) {
       result.push(emitter(condition[k], node, relationship));
+    } else {
+      const entity = !relationship ? node : node.properties[k] ? node : relationship;
+      result.push(
+        propConditionCypher("all", k, entity.properties[k], condition[k], entity.variable)
+      );
     }
   }
   return joinOp(op, result);
 };
 
-const propConditionEmitters: {
+const propCondEmitters: {
   [key: string]: (
     propertyName: string,
     property: Property,
@@ -171,8 +227,7 @@ const propConditionCypher = (
 ): CypherNode => {
   const result: CypherNode[] = [];
   for (const k in condition) {
-    const emitter = propConditionEmitters[k] ?? error(`Unknow property condition key: ${k}`);
-    result.push(emitter(propertyName, property, entity, condition[k]));
+    result.push(propCondEmitters[k](propertyName, property, entity, condition[k]));
   }
   return joinOp(op, result);
 };

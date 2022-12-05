@@ -62,14 +62,14 @@ export const createGraphOfDefinition = <G extends GraphDefinition>(def: G) => {
       return {
         type: "createNode",
         labels: [...labels],
-        properties: node.propertiesType.parse(props),
+        properties: node.propertiesZodType.parse(props),
       };
     };
     (result.update as any)[l] = (id: Id, props: any): UpdateNode => {
       return {
         type: "updateNode",
         node: id,
-        properties: node.propertiesType.partial().parse(props),
+        properties: node.propertiesZodType.partial().parse(props),
       };
     };
     (result.select as any)[l] = (members: any) => createNodeSelection(def, l, node, members);
@@ -82,14 +82,14 @@ export const createGraphOfDefinition = <G extends GraphDefinition>(def: G) => {
         relationshipType: t,
         start: start,
         end: end,
-        properties: relationship.propertiesType.strict().parse(props),
+        properties: relationship.propertiesZodType.strict().parse(props),
       };
     };
     (result.update as any)[t] = (id: Id, props: any): UpdateRelationship => {
       return {
         type: "updateRelationship",
         relationship: id,
-        properties: relationship.propertiesType.strict().partial().parse(props),
+        properties: relationship.propertiesZodType.strict().partial().parse(props),
       };
     };
   }

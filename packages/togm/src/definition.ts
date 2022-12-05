@@ -1,106 +1,107 @@
 import { z } from "zod";
-import { Property } from "./property";
-import { Reference } from "./reference";
-import { NodeSelectionTypes } from "./selection";
-import { PickValuesExtend, ZodObject, ZodType } from "./util";
+import { Property, zProperty } from "./property";
+import { Reference, zReference } from "./reference";
+import { nodeSelectionTypes } from "./selection";
+import { PickValuesExtend, zZodObject, zZodType } from "./util";
 
 const Name = z.string().refine((arg) => !arg.startsWith("$"), { message: "Starting with '$'" });
 
-export type Properties = z.infer<typeof Properties>;
-export const Properties = z.record(Name, Property);
+export type Properties = z.infer<typeof zProperties>;
+export const zProperties = z.record(Name, zProperty);
 
-export type References = z.infer<typeof References>;
-export const References = z.record(Name, Reference);
+export type References = z.infer<typeof zReferences>;
+export const zReferences = z.record(Name, zReference);
 
-export type NodeDefinition = z.infer<typeof NodeDefinition>;
-export const NodeDefinition = z.object({
+export type NodeDefinition = z.infer<typeof zNodeDefinition>;
+export const zNodeDefinition = z.object({
   type: z.literal("node"),
-  properties: Properties,
-  propertiesType: ZodObject,
-  references: References,
+  properties: zProperties,
+  propertiesZodType: zZodObject,
+  references: zReferences,
 });
 
-export type RelationshipDefinition = z.infer<typeof RelationshipDefinition>;
-export const RelationshipDefinition = z.object({
+export type RelationshipDefinition = z.infer<typeof zRelationshipDefinition>;
+export const zRelationshipDefinition = z.object({
   type: z.literal("relationship"),
-  properties: Properties,
-  propertiesType: ZodObject,
+  properties: zProperties,
+  propertiesZodType: zZodObject,
 });
 
-export type EntityDefinition = z.infer<typeof EntityDefinition>;
-export const EntityDefinition = NodeDefinition.or(RelationshipDefinition);
+export type EntityDefinition = z.infer<typeof zEntityDefinition>;
+export const zEntityDefinition = zNodeDefinition.or(zRelationshipDefinition);
 
-export type Nodes = z.infer<typeof Nodes>;
-export const Nodes = z.record(z.string(), NodeDefinition);
+export type Nodes = z.infer<typeof zNodes>;
+export const zNodes = z.record(z.string(), zNodeDefinition);
 
-export type Relationships = z.infer<typeof Relationships>;
-export const Relationships = z.record(z.string(), RelationshipDefinition);
+export type Relationships = z.infer<typeof zRelationships>;
+export const zRelationships = z.record(z.string(), zRelationshipDefinition);
 
-export type GraphDefinition = z.infer<typeof GraphDefinition>;
-export const GraphDefinition = z.object({
-  nodes: Nodes,
-  relationships: Relationships,
-  selectionTypes: z.record(z.string(), ZodType),
+export type GraphDefinition = z.infer<typeof zGraphDefinition>;
+export const zGraphDefinition = z.object({
+  nodes: zNodes,
+  relationships: zRelationships,
+  selectionTypes: z.record(z.string(), zZodType),
 });
 
-type NodeMembers = z.infer<typeof NodeMembers>;
-const NodeMembers = z.record(Name, Property.or(Reference));
+type NodeMembers = z.infer<typeof zNodeMembers>;
+const zNodeMembers = z.record(Name, zProperty.or(zReference));
 
 type NodeDefProps<M extends NodeMembers> = PickValuesExtend<M, Property>;
-const NodeDefProps = <M extends NodeMembers>(members: M) =>
+const zNodeDefProps = <M extends NodeMembers>(members: M) =>
   Object.fromEntries(
     Object.entries(members).filter(([k, v]) => v.type === "property")
   ) as NodeDefProps<M>;
 
 type NodeDefRefs<M extends NodeMembers> = PickValuesExtend<M, Reference>;
-const NodeDefRefs = <M extends NodeMembers>(members: M) =>
+const zNodeDefRefs = <M extends NodeMembers>(members: M) =>
   Object.fromEntries(
     Object.entries(members).filter(([k, v]) => v.type === "reference")
   ) as NodeDefRefs<M>;
 
-export type GraphMembers = z.infer<typeof GraphMembers>;
-const GraphMembers = z.record(Name, EntityDefinition);
+export type GraphMembers = z.infer<typeof zGraphMembers>;
+const zGraphMembers = z.record(Name, zEntityDefinition);
 
 type GraphDefNodes<M extends GraphMembers> = PickValuesExtend<M, NodeDefinition>;
-const GraphDefNodes = <M extends GraphMembers>(members: M) =>
+const graphDefNodes = <M extends GraphMembers>(members: M) =>
   Object.fromEntries(
     Object.entries(members).filter(([k, v]) => v.type === "node")
   ) as GraphDefNodes<M>;
 
 type GraphDefRels<M extends GraphMembers> = PickValuesExtend<M, RelationshipDefinition>;
-const GraphDefRels = <M extends GraphMembers>(members: M) =>
+const graphDefRels = <M extends GraphMembers>(members: M) =>
   Object.fromEntries(
     Object.entries(members).filter(([k, v]) => v.type === "relationship")
   ) as GraphDefRels<M>;
 
-const propertiesType = (props: Properties) =>
+const propertiesZodType = (props: Properties) =>
   z.object(Object.fromEntries(Object.entries(props).map(([k, v]) => [k, v.zodType])) as any);
 
 export const defineNode = <M extends NodeMembers>(members: M) => {
-  const parsedMembers = NodeMembers.parse(members) as M;
-  const properties = NodeDefProps(parsedMembers);
+  const parsedMembers = zNodeMembers.parse(members) as M;
+  const properties = zNodeDefProps(parsedMembers);
   return {
     type: "node",
     properties,
-    propertiesType: propertiesType(properties),
-    references: NodeDefRefs(parsedMembers),
+    propertiesZodType: propertiesZodType(properties),
+    references: zNodeDefRefs(parsedMembers),
   } satisfies NodeDefinition;
 };
 
 export const defineRelationship = <M extends Properties>(members: M) => {
-  const parsedMembers = Properties.parse(members) as M;
-  const properties = NodeDefProps(parsedMembers);
+  const parsedMembers = zProperties.parse(members) as M;
+  const properties = zNodeDefProps(parsedMembers);
   return {
     type: "relationship",
     properties,
-    propertiesType: propertiesType(properties),
+    propertiesZodType: propertiesZodType(properties),
   } satisfies RelationshipDefinition;
 };
 
 export const defineGraph = <M extends GraphMembers>(members: M) => {
-  const parsedMembers = GraphMembers.parse(members) as M;
-  const nodes = GraphDefNodes(parsedMembers);
-  const relationships = GraphDefRels(parsedMembers);
-  const selectionTypes = NodeSelectionTypes({ nodes, relationships });
+  const parsedMembers = zGraphMembers.parse(members) as M;
+  const nodes = graphDefNodes(parsedMembers);
+  const relationships = graphDefRels(parsedMembers);
+  const selectionTypes = nodeSelectionTypes({ nodes, relationships });
+  // TODO: schema integrity validation
   return { nodes, relationships, selectionTypes } satisfies GraphDefinition;
 };
