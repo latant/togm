@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/ban-types */
-import { z } from "zod";
+import { z, ZodObject } from "zod";
 import {
   AND,
   CONTAINS,
@@ -24,17 +24,18 @@ import { MatchProvider } from "./read";
 
 type All<T> = T & { $any?: Any<T>; $not?: All<T> };
 
-const zAll = <T extends z.ZodType>(type: T): z.ZodType<All<T>> =>
-  z.lazy(() => type.and(z.object({ $any: zAny(type).optional(), $not: zAll(type).optional() })));
+const zAll = <T extends z.SomeZodObject>(type: T): z.ZodType<All<z.infer<T>>> =>
+  z.lazy(() => type.merge(z.object({ $any: zAny(type).optional(), $not: zAll(type).optional() })));
 
 type Any<T> = T & { $all?: All<T>; $not?: All<T> };
 
-const zAny = <T extends z.ZodType>(type: T): z.ZodType<Any<T>> =>
-  type.and(z.object({ $all: zAll(type).optional(), $not: zAll(type).optional() }));
+const zAny = <T extends z.SomeZodObject>(type: T): z.ZodType<Any<z.infer<T>>> =>
+  type.merge(z.object({ $all: zAll(type).optional(), $not: zAll(type).optional() }));
 
 export type NodeCondition<P extends Properties = Properties> = All<SimpleNodeCondition<P>>;
 
-export const zNodeCondition = <P extends Properties>(props: P) => zAll(zSimpleNodeCondition(props));
+export const zNodeCondition = <P extends Properties>(props: P) =>
+  zAll(zSimpleNodeCondition(props) as z.SomeZodObject);
 
 export type ReferenceCondition<
   N extends Properties = Properties,
@@ -45,7 +46,7 @@ export const zReferenceCondition = <N extends Properties, R extends Properties>(
   nodeProps: N,
   relProps: R
 ) =>
-  zAll(zSimpleReferenceCondition({ ...nodeProps, ...relProps })) as z.ZodType<
+  zAll(zSimpleReferenceCondition({ ...nodeProps, ...relProps }) as z.SomeZodObject) as z.ZodType<
     ReferenceCondition<N, R>
   >;
 
@@ -79,7 +80,7 @@ export const zSimpleReferenceCondition = <P extends Properties>(props: P) => {
 type PropertyCondition<P extends Property> = All<SimplePropertyCondition<P>>;
 
 const zPropertyCondition = <P extends Property>(property: P) =>
-  zAll(zSimplePropertyCondition(property)) as unknown as z.ZodType<PropertyCondition<P>>;
+  zAll(zSimplePropertyCondition(property) as z.SomeZodObject) as z.ZodType<PropertyCondition<P>>;
 
 type SimplePropertyCondition<P extends Property> = Partial<
   (P["nullable"] extends true ? { null: boolean } : {}) &

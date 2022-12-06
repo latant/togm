@@ -40,8 +40,7 @@ export const nodeSelectionTypes = <E extends Entities>(entities: E) => {
     const node = entities.nodes[l];
     nodeFields[l] = {};
     for (const r in node.references) {
-      const reference = node.references[r];
-      nodeFields[l][r] = z.lazy(() => refTypes[reference.label][r]);
+      nodeFields[l][r] = z.lazy(() => refTypes[l][r]);
     }
   }
   for (const l in entities.nodes) {

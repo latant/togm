@@ -142,8 +142,9 @@ const selectNodeFunctions = (graph: GraphDefinition) => {
   const result = {} as Record<string, SelectNodeFunction>;
   for (const l in graph.nodes) {
     const node = graph.nodes[l];
-    result[l] = (members: unknown) =>
-      createNodeSelection(graph, l, node, graph.selectionTypes[l].parse(members));
+    result[l] = (members: unknown) => {
+      return createNodeSelection(graph, l, node, graph.selectionTypes[l].parse(members));
+    };
   }
   return result;
 };
