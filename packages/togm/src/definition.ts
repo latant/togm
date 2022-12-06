@@ -1,16 +1,17 @@
 import { z } from "zod";
+import { zNodeCondition } from "./condition";
 import { Property, zProperty } from "./property";
 import { Reference, zReference } from "./reference";
 import { nodeSelectionTypes } from "./selection";
 import { error, PickValuesExtend, zZodObject, zZodType } from "./util";
 
-const Name = z.string().refine((arg) => !arg.startsWith("$"), { message: "Starting with '$'" });
+const zName = z.string().refine((arg) => !arg.startsWith("$"), { message: "Starting with '$'" });
 
 export type Properties = z.infer<typeof zProperties>;
-export const zProperties = z.record(Name, zProperty);
+export const zProperties = z.record(zName, zProperty);
 
 export type References = z.infer<typeof zReferences>;
-export const zReferences = z.record(Name, zReference);
+export const zReferences = z.record(zName, zReference);
 
 export type NodeDefinition = z.infer<typeof zNodeDefinition>;
 export const zNodeDefinition = z.object({
@@ -36,15 +37,22 @@ export const zNodes = z.record(z.string(), zNodeDefinition);
 export type Relationships = z.infer<typeof zRelationships>;
 export const zRelationships = z.record(z.string(), zRelationshipDefinition);
 
+export type Entities = z.infer<typeof zEntities>;
+export const zEntities = z.strictObject({
+  nodes: zNodes,
+  relationships: zRelationships,
+});
+
 export type GraphDefinition = z.infer<typeof zGraphDefinition>;
 export const zGraphDefinition = z.object({
   nodes: zNodes,
   relationships: zRelationships,
-  selectionTypes: z.record(z.string(), zZodType),
+  selectionTypes: z.record(zName, zZodType),
+  conditionTypes: z.record(zName, zZodType),
 });
 
 type NodeMembers = z.infer<typeof zNodeMembers>;
-const zNodeMembers = z.record(Name, zProperty.or(zReference));
+const zNodeMembers = z.record(zName, zProperty.or(zReference));
 
 type NodeDefProps<M extends NodeMembers> = PickValuesExtend<M, Property>;
 const zNodeDefProps = <M extends NodeMembers>(members: M) =>
@@ -59,7 +67,7 @@ const zNodeDefRefs = <M extends NodeMembers>(members: M) =>
   ) as NodeDefRefs<M>;
 
 export type GraphMembers = z.infer<typeof zGraphMembers>;
-const zGraphMembers = z.record(Name, zEntityDefinition);
+const zGraphMembers = z.record(zName, zEntityDefinition);
 
 type GraphDefNodes<M extends GraphMembers> = PickValuesExtend<M, NodeDefinition>;
 const graphDefNodes = <M extends GraphMembers>(members: M) =>
@@ -102,6 +110,10 @@ export const defineGraph = <M extends GraphMembers>(members: M) => {
   const nodes = graphDefNodes(parsedMembers);
   const relationships = graphDefRels(parsedMembers);
   const selectionTypes = nodeSelectionTypes({ nodes, relationships });
+  const conditionTypes = {} as { [key: string]: z.ZodType };
+  for (const l in nodes) {
+    conditionTypes[l] = zNodeCondition(nodes[l].properties);
+  }
   for (const l in nodes) {
     const node = nodes[l];
     for (const r in node.references) {
@@ -111,5 +123,10 @@ export const defineGraph = <M extends GraphMembers>(members: M) => {
       }
     }
   }
-  return { nodes, relationships, selectionTypes } satisfies GraphDefinition;
+  return {
+    nodes,
+    relationships,
+    selectionTypes,
+    conditionTypes,
+  } satisfies GraphDefinition;
 };

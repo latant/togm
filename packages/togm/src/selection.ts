@@ -9,16 +9,11 @@ import {
   zReferenceCondition,
 } from "./condition";
 import { CypherNode, Identifier, identifier, MapEntry, WHERE } from "./cypher";
-import { GraphDefinition, NodeDefinition, Nodes, Relationships } from "./definition";
+import { Entities, GraphDefinition, NodeDefinition } from "./definition";
 import { coercedPropertyZodTypes } from "./property";
 import { MatchProvider, NodeExpressionProvider, runReadQuery } from "./read";
 import { Reference, WithMultiplicity } from "./reference";
 import { getValues } from "./util";
-
-type Entities = {
-  nodes: Nodes;
-  relationships: Relationships;
-};
 
 export type NodeSelectionDefinitionMembers<E extends Entities, N extends NodeDefinition> = {
   [K in keyof N["references"]]?: ReferenceSelectionDefinitionMembers<E, N["references"][K]>;
@@ -266,6 +261,7 @@ export const createNodeSelection = (
   members: any
 ): NodeSelection => {
   const def = defineNodeSelection(graph, node, members);
+  const conditionType = graph.conditionTypes[label];
   const exp: NodeExpressionProvider<any> = {
     labels: [label],
     cypher(n) {
@@ -280,9 +276,14 @@ export const createNodeSelection = (
       const result = await runReadQuery(p, exp, t);
       return result[0];
     },
-    find: async (c, t) => runReadQuery(nodeMatchProvider(label, node, c), exp, t),
+    find: async (c, t) =>
+      runReadQuery(nodeMatchProvider(label, node, conditionType.parse(c)), exp, t),
     findOne: async (c, t) => {
-      const result = await runReadQuery(nodeMatchProvider(label, node, c), exp, t);
+      const result = await runReadQuery(
+        nodeMatchProvider(label, node, conditionType.parse(c)),
+        exp,
+        t
+      );
       return result[0];
     },
   };
