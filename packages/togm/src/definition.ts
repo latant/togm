@@ -105,6 +105,20 @@ export const defineRelationship = <M extends Properties>(members: M) => {
   } satisfies RelationshipDefinition;
 };
 
+export type ValidMembers<M extends GraphMembers> = {
+  [key in keyof M]:
+    | { type: "relationship" }
+    | {
+        type: "node";
+        references: {
+          [key: string]: {
+            label: keyof GraphDefNodes<M>;
+            relationshipType: keyof GraphDefRels<M>;
+          };
+        };
+      };
+};
+
 export const defineGraph = <M extends GraphMembers>(members: M) => {
   const parsedMembers = zGraphMembers.parse(members) as M;
   const nodes = graphDefNodes(parsedMembers);
@@ -120,6 +134,9 @@ export const defineGraph = <M extends GraphMembers>(members: M) => {
       const reference = node.references[r];
       if (!(nodes as Nodes)[reference.label]) {
         error(`Node '${reference.label}' not found for reference ${l}.${r}`);
+      }
+      if (!(relationships as Relationships)[reference.relationshipType]) {
+        error(`Relationship '${reference.relationshipType}' not found for reference ${l}.${r}`);
       }
     }
   }

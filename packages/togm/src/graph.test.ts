@@ -18,7 +18,7 @@ import { z } from "zod";
 import { propertyFactories } from "./property";
 import { referenceFactories } from "./reference";
 import { loadMoviesExample, moviesGraph } from "./test/movies";
-import { expectValid, useTestDatabase } from "./test/testUtils";
+import { expectException, expectValid, useTestDatabase } from "./test/testUtils";
 import { neo, ogm } from "./togm";
 import { CreateNode } from "./update";
 import { getKeys } from "./util";
@@ -234,5 +234,27 @@ describe("definition tests", () => {
     const actor = movie!.actors.find((a) => a.roles.includes("Julian Mercer"))!;
     expect(actor.$id).toBe(person?.$id);
     expect(actor.roles).toEqual(["Neo", "Julian Mercer"]);
+  });
+
+  it("should throw exception when one of the references refer to an undefined node label", async () => {
+    await expectException(() => {
+      ogm.graph({
+        User: ogm.node({
+          phone: ogm.oneOut("HAS_PHONE", "Phone"),
+        }),
+        HAS_PHONE: ogm.relationship({}),
+      } as any);
+    });
+  });
+
+  it("should throw exception when one of the references refer to an undefined relationship type", async () => {
+    await expectException(() => {
+      ogm.graph({
+        User: ogm.node({
+          phone: ogm.oneOut("HAS_PHONE", "Phone"),
+        }),
+        Phone: ogm.node({}),
+      } as any);
+    });
   });
 });

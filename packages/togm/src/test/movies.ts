@@ -18,6 +18,7 @@ export const moviesGraph = () =>
       born: ogm.numberOrNull(),
       followers: ogm.manyIn("FOLLOWS", "Person"),
       followees: ogm.manyOut("FOLLOWS", "Person"),
+      followersAndFollowees: ogm.manyUndirected("FOLLOWS", "Person"),
       moviesActedIn: ogm.manyOut("ACTED_IN", "Movie"),
       reviewedMovies: ogm.manyOut("REVIEWED", "Movie"),
       producedMovies: ogm.manyOut("PRODUCED", "Movie"),
@@ -31,6 +32,10 @@ export const moviesGraph = () =>
       rating: ogm.number(),
       summary: ogm.string(),
     }),
+    PRODUCED: ogm.relationship({}),
+    WROTE: ogm.relationship({}),
+    DIRECTED: ogm.relationship({}),
+    FOLLOWS: ogm.relationship({}),
   });
 
 // const g = moviesGraph();

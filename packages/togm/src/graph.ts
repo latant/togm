@@ -6,6 +6,7 @@ import {
   NodeDefinition,
   Properties,
   RelationshipDefinition,
+  ValidMembers,
 } from "./definition";
 import { PropRecord } from "./property";
 import {
@@ -71,7 +72,7 @@ export type Graph<G extends GraphDefinition = GraphDefinition> = {
   update: UpdateEntityFunctions<G>;
 };
 
-export const createGraph = <M extends GraphMembers>(members: M) =>
+export const createGraph = <M extends GraphMembers & ValidMembers<M>>(members: M) =>
   createGraphOfDefinition(defineGraph(members));
 
 const createNodeFunctions = (graph: GraphDefinition) => {
