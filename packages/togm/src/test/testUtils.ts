@@ -36,6 +36,7 @@ export const expectException = async (run: () => any) => {
   if (!exception) {
     fail("no exception thrown");
   }
+  return exception;
 };
 
 export const expectValid = (x: any, type: ZodType) => {

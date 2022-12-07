@@ -95,7 +95,7 @@ describe("definition tests", () => {
         })
       );
     }
-    await neo.writeTransaction(driver, () => neo.update(creations));
+    await neo.writeTransaction(driver, () => neo.runCommands(creations));
     const nodes = await neo.readTransaction(driver, () => graph.select.Node({}).find({}));
     expect(nodes.length).toBe(10);
     expectValid(
@@ -131,7 +131,7 @@ describe("definition tests", () => {
         })
       );
     }
-    await neo.writeTransaction(driver, () => neo.update(creations));
+    await neo.writeTransaction(driver, () => neo.runCommands(creations));
     const nodes = await neo.readTransaction(driver, () => graph.select.Node({}).find({}));
     expect(nodes.length).toBe(10);
     expectValid(
@@ -161,7 +161,7 @@ describe("definition tests", () => {
       const u1 = graph.create.User({});
       const p = graph.create.Phone({ value: "+36702555555" });
       const r = graph.create.HAS_PHONE(u0, p, {});
-      await neo.update([u0, u1, p, r]);
+      await neo.runCommands([u0, u1, p, r]);
     });
     const nodes = await neo.readTransaction(driver, () =>
       graph.select.User({ phone: {} }).find({})
@@ -193,7 +193,7 @@ describe("definition tests", () => {
       })
     );
     await neo.writeTransaction(driver, () =>
-      neo.update([
+      neo.runCommands([
         graph.update.Movie(movie!.$id, {
           tagline: "awesome tagline",
           title: "Something",
@@ -220,7 +220,7 @@ describe("definition tests", () => {
     );
     const relId = person!.moviesActedIn.find((m) => m.roles.includes("Julian Mercer"))!.$rid;
     await neo.writeTransaction(driver, () =>
-      neo.update([
+      neo.runCommands([
         graph.update.ACTED_IN(relId, {
           roles: ["Neo", "Julian Mercer"],
         }),

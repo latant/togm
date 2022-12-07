@@ -38,6 +38,7 @@ export const DELETE = keyword("DELETE");
 export const UNWIND = keyword("UNWIND");
 export const MATCH = keyword("MATCH");
 export const WHERE = keyword("WHERE");
+export const LIMIT = keyword("LIMIT");
 export const WITH = keyword("WITH");
 export const NULL = keyword("NULL");
 export const ENDS = keyword("ENDS");

@@ -8,10 +8,10 @@ import {
   ReferenceCondition,
   zReferenceCondition,
 } from "./condition";
-import { CypherNode, Identifier, identifier, MapEntry, WHERE } from "./cypher";
+import { CypherNode, Identifier, identifier, joinCypher, MapEntry, WHERE } from "./cypher";
 import { Entities, GraphDefinition, NodeDefinition } from "./definition";
 import { coercedPropertyZodTypes } from "./property";
-import { MatchProvider, NodeExpressionProvider, runReadQuery } from "./read";
+import { MatchProvider, NodeExpressionProvider, runReadOneQuery, runReadQuery } from "./read";
 import { Reference, WithMultiplicity, zWithMultiplicity } from "./reference";
 import { getValues } from "./util";
 
@@ -52,7 +52,7 @@ export const nodeSelectionTypes = <E extends Entities>(entities: E) => {
         .strictObject({
           $where: zReferenceCondition(
             node.properties,
-            entities.relationships[reference.relationshipType]?.properties ?? {}
+            entities.relationships[reference.relationshipType].properties
           ),
           ...nodeFields[reference.label],
         })
@@ -178,29 +178,12 @@ const referenceSelectionResultType = (def: ReferenceSelectionDefinition) => {
 };
 
 const nodeSelectionCypher = (def: NodeSelectionDefinition, node: Identifier): CypherNode => {
-  const entries: { [key: string]: MapEntry } = {};
+  const entries: Record<string, MapEntry> = {};
   for (const k in def.node.properties) {
     entries[k] = [identifier(k), [node, ".", identifier(k)]];
   }
   for (const k in def.references) {
-    const reference = def.references[k].reference;
-    const targetNode = identifier();
-    const targetRel = identifier();
-    entries[k] = [
-      identifier(k),
-      [
-        "[",
-        ["(", node, ")"],
-        reference.direction === "in" && "<",
-        ["-[", targetRel, ":", identifier(reference.relationshipType), "]-"],
-        reference.direction === "out" && ">",
-        ["(", targetNode, ":", identifier(reference.label), ")"],
-        "|",
-        referenceSelectionCypher(def.references[k], targetRel, targetNode),
-        "]",
-        reference.multiplicity !== "many" && "[0]",
-      ],
-    ];
+    entries[k] = [identifier(k), selectedReferenceCypher(def.references[k], node)];
   }
   entries.$id = [identifier("$id"), ["id(", node, ")"]];
   return { type: "map", map: getValues(entries) };
@@ -218,38 +201,42 @@ const referenceSelectionCypher = (
   for (const k in def.node.properties) {
     entries[k] = [identifier(k), [node, ".", identifier(k)]];
   }
+  for (const k in def.references) {
+    entries[k] = [identifier(k), selectedReferenceCypher(def.references[k], node)];
+  }
+  entries.$id = [identifier("$id"), ["id(", node, ")"]];
+  entries.$rid = [identifier("$rid"), ["id(", relationship, ")"]];
+  return { type: "map", map: getValues(entries) };
+};
+
+const selectedReferenceCypher = (
+  def: ReferenceSelectionDefinition,
+  sourceNode: Identifier
+): CypherNode => {
+  const targetNode = identifier();
+  const targetRel = identifier();
   const condCypher =
     def.condition &&
     conditionCypher(
       "all",
       def.condition,
-      { properties: def.node.properties, variable: node },
-      { properties: def.relationship.properties, variable: relationship }
+      { properties: def.node.properties, variable: targetNode },
+      { properties: def.relationship.properties, variable: targetRel }
     );
-  for (const k in def.references) {
-    const reference = def.references[k].reference;
-    const targetNode = identifier();
-    const targetRel = identifier();
-    entries[k] = [
-      identifier(k),
-      [
-        "[",
-        ["(", node, ")"],
-        reference.direction === "in" && "<",
-        ["-[", targetRel, ":", identifier(reference.relationshipType), "]-"],
-        reference.direction === "out" && ">",
-        ["(", targetNode, ":", identifier(reference.label), ")"],
-        condCypher && [WHERE, condCypher],
-        "|",
-        referenceSelectionCypher(def.references[k], targetRel, targetNode),
-        "]",
-        reference.multiplicity !== "many" && "[0]",
-      ],
-    ];
-  }
-  entries.$id = [identifier("$id"), ["id(", node, ")"]];
-  entries.$rid = [identifier("$rid"), ["id(", relationship, ")"]];
-  return { type: "map", map: getValues(entries) };
+  const r = def.reference;
+  return [
+    "[",
+    ["(", sourceNode, ")"],
+    r.direction === "in" && "<",
+    ["-[", targetRel, ":", identifier(r.relationshipType), "]-"],
+    r.direction === "out" && ">",
+    ["(", targetNode, ":", identifier(r.label), ")"],
+    condCypher && [WHERE, condCypher],
+    "|",
+    referenceSelectionCypher(def, targetRel, targetNode),
+    "]",
+    r.multiplicity !== "many" && "[0]",
+  ];
 };
 
 export const createNodeSelection = (
@@ -269,20 +256,10 @@ export const createNodeSelection = (
   };
   return {
     definition: def,
-    match: async (p, t) => runReadQuery(p, exp, t),
-    matchOne: async (p, t) => {
-      const result = await runReadQuery(p, exp, t);
-      return result[0];
-    },
-    find: async (c, t) =>
-      runReadQuery(nodeMatchProvider(label, node, conditionType.parse(c)), exp, t),
-    findOne: async (c, t) => {
-      const result = await runReadQuery(
-        nodeMatchProvider(label, node, conditionType.parse(c)),
-        exp,
-        t
-      );
-      return result[0];
-    },
+    match: (p, t) => runReadQuery(p, exp, t),
+    matchOne: (p, t) => runReadOneQuery(p, exp, t),
+    find: (c, t) => runReadQuery(nodeMatchProvider(label, node, conditionType.parse(c)), exp, t),
+    findOne: (c, t) =>
+      runReadOneQuery(nodeMatchProvider(label, node, conditionType.parse(c)), exp, t),
   };
 };

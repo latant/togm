@@ -123,11 +123,6 @@ export const defineGraph = <M extends GraphMembers>(members: M) => {
   const parsedMembers = zGraphMembers.parse(members) as M;
   const nodes = graphDefNodes(parsedMembers);
   const relationships = graphDefRels(parsedMembers);
-  const selectionTypes = nodeSelectionTypes({ nodes, relationships });
-  const conditionTypes = {} as { [key: string]: z.ZodType };
-  for (const l in nodes) {
-    conditionTypes[l] = zNodeCondition(nodes[l].properties);
-  }
   for (const l in nodes) {
     const node = nodes[l];
     for (const r in node.references) {
@@ -139,6 +134,11 @@ export const defineGraph = <M extends GraphMembers>(members: M) => {
         error(`Relationship '${reference.relationshipType}' not found for reference ${l}.${r}`);
       }
     }
+  }
+  const selectionTypes = nodeSelectionTypes({ nodes, relationships });
+  const conditionTypes = {} as { [key: string]: z.ZodType };
+  for (const l in nodes) {
+    conditionTypes[l] = zNodeCondition(nodes[l].properties);
   }
   return {
     nodes,

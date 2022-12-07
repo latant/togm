@@ -40,7 +40,7 @@ describe("test type-safe graph selections", () => {
     await neo.writeTransaction(driver, async () => {
       await loadMoviesExample();
     });
-    const selection = graph.select.Movie({ actors: { moviesActedIn: {} } });
+    const selection = graph.select.Movie({ actors: { moviesActedIn: {}, followers: {} } });
     const findResult = await neo.readTransaction(driver, () => selection.find({}));
     const findOneResult = await neo.readTransaction(driver, () => selection.findOne({}));
     const type = z.strictObject({
@@ -62,6 +62,15 @@ describe("test type-safe graph selections", () => {
               title: z.string(),
               released: z.number(),
               tagline: z.string().nullable(),
+              roles: z.string().array(),
+            })
+          ),
+          followers: z.array(
+            z.strictObject({
+              $rid: z.number(),
+              $id: z.number(),
+              name: z.string(),
+              born: z.number().nullable(),
               roles: z.string().array(),
             })
           ),
@@ -149,5 +158,33 @@ describe("test type-safe graph selections", () => {
     );
     expect(matchedMovie).toEqual(foundMovie);
     expect(matchedMovies).toEqual(foundMovies);
+  });
+
+  it("should generate where clause in the cypher of a selection using a reference condition", async () => {
+    const graph = moviesGraph();
+    await neo.writeTransaction(driver, loadMoviesExample);
+    const movie = await neo.readTransaction(driver, () =>
+      graph.select
+        .Movie({ actors: { $where: { roles: { contains: "Racer X" } } } })
+        .findOne({ title: { "=": "Speed Racer" } })
+    );
+    expectValid(
+      movie,
+      z.strictObject({
+        $id: z.number(),
+        tagline: z.literal("Speed has no limits"),
+        title: z.literal("Speed Racer"),
+        released: z.literal(2008),
+        actors: z.tuple([
+          z.strictObject({
+            $id: z.number(),
+            $rid: z.number(),
+            born: z.literal(1966),
+            name: z.literal("Matthew Fox"),
+            roles: z.tuple([z.literal("Racer X")]),
+          }),
+        ]),
+      })
+    );
   });
 });

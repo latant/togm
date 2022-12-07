@@ -55,7 +55,7 @@ const filterCommands = <T extends Command["type"]>(commands: Command[], type: T)
   return commands.filter((c) => c.type === type) as (Command & { type: T })[];
 };
 
-export const bulkUpdate = async (
+export const runCommands = async (
   commands: Command[],
   transaction: Transaction = getTransaction()
 ) => {
@@ -74,10 +74,7 @@ const getId = (id: Id): number => {
   return id.id ?? error("unresolved id");
 };
 
-export const createNodes = async (
-  creations: Omit<CreateNode, "type">[],
-  transaction: Transaction = getTransaction()
-) => {
+const createNodes = async (creations: Omit<CreateNode, "type">[], transaction: Transaction) => {
   if (!creations.length) return;
   const nodesByLabels: { [key: string]: Omit<CreateNode, "type">[] } = {};
   for (const c of creations) {
@@ -105,9 +102,9 @@ export const createNodes = async (
   }
 };
 
-export const createRelationships = async (
+const createRelationships = async (
   creations: Omit<CreateRelationship, "type">[],
-  transaction: Transaction = getTransaction()
+  transaction: Transaction
 ) => {
   if (!creations.length) return;
   const relsByType: { [key: string]: Omit<CreateRelationship, "type">[] } = {};
@@ -145,10 +142,7 @@ export const createRelationships = async (
   }
 };
 
-export const updateNodes = async (
-  updates: Omit<UpdateNode, "type">[],
-  transaction: Transaction = getTransaction()
-) => {
+const updateNodes = async (updates: Omit<UpdateNode, "type">[], transaction: Transaction) => {
   if (!updates.length) return;
   const result = await transaction.run({
     text: "UNWIND $updates AS u MATCH (n) WHERE id(n) = u.id SET n += u.props RETURN u.id AS id",
@@ -164,9 +158,9 @@ export const updateNodes = async (
   }
 };
 
-export const updateRelationships = async (
+const updateRelationships = async (
   updates: Omit<UpdateRelationship, "type">[],
-  transaction: Transaction = getTransaction()
+  transaction: Transaction
 ) => {
   if (!updates.length) return;
   const result = await transaction.run({
@@ -183,24 +177,24 @@ export const updateRelationships = async (
   }
 };
 
-export const deleteRelationships = async (
-  deletions: Omit<DeleteRelationship, "type">[],
-  transaction: Transaction = getTransaction()
-) => {
-  if (!deletions.length) return;
-  await transaction.run({
-    text: "MATCH ()-[r]->() WHERE id(r) IN $ids DELETE r",
-    parameters: { ids: deletions.map((d) => getId(d.relationship)) },
-  });
-};
-
 export const deleteNodes = async (
   deletions: Omit<DeleteNode, "type">[],
-  transaction: Transaction = getTransaction()
+  transaction: Transaction
 ) => {
   if (!deletions.length) return;
   await transaction.run({
     text: "MATCH (n) WHERE id(n) IN $ids DETACH DELETE n",
     parameters: { ids: deletions.map((d) => getId(d.node)) },
+  });
+};
+
+const deleteRelationships = async (
+  deletions: Omit<DeleteRelationship, "type">[],
+  transaction: Transaction
+) => {
+  if (!deletions.length) return;
+  await transaction.run({
+    text: "MATCH ()-[r]->() WHERE id(r) IN $ids DELETE r",
+    parameters: { ids: deletions.map((d) => getId(d.relationship)) },
   });
 };

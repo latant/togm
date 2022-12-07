@@ -9,7 +9,7 @@ import {
   runSession,
   writeTransaction,
 } from "./transaction";
-import { bulkUpdate } from "./update";
+import { runCommands } from "./update";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Transaction, Session, Driver, Result } from "neo4j-driver";
 import { identifier, joinCypher, keyword, parameter } from "./cypher";
@@ -38,8 +38,12 @@ export const neo = {
    * The transaction and the session are automatically committed and closed after the block runs.
    */
   writeTransaction: writeTransaction,
-  /** Runs update commands in a transaction. */
-  update: bulkUpdate,
+  /**
+   * Runs commands in a transaction.
+   * Commands can be: creation/update/deletion of node/relationship.
+   * The commands are batched, minimizing the number of queries executed.
+   */
+  runCommands: runCommands,
   /**
    * Runs a block inside a driver session.
    * The session is automatically closed after the block runs.

@@ -19,7 +19,13 @@ import {
   WITH,
 } from "./cypher";
 import { NodeDefinition, Properties } from "./definition";
-import { coercedPropertyZodTypes, Property, PropertyType, TSProperty } from "./property";
+import {
+  coercedPropertyZodTypes,
+  Property,
+  PropertyType,
+  propertyZodTypes,
+  TSProperty,
+} from "./property";
 import { MatchProvider } from "./read";
 
 type All<T> = T & { $any?: Any<T>; $not?: All<T> };
@@ -40,15 +46,12 @@ export const zNodeCondition = <P extends Properties>(props: P) =>
 export type ReferenceCondition<
   N extends Properties = Properties,
   R extends Properties = Properties
-> = All<SimpleReferenceCondition<R & Omit<N, keyof R>>>;
+> = All<SimpleReferenceCondition<N & Omit<R, keyof N>>>;
 
 export const zReferenceCondition = <N extends Properties, R extends Properties>(
   nodeProps: N,
   relProps: R
-) =>
-  zAll(zSimpleReferenceCondition({ ...nodeProps, ...relProps }) as z.SomeZodObject) as z.ZodType<
-    ReferenceCondition<N, R>
-  >;
+) => zAll(zSimpleReferenceCondition({ ...nodeProps, ...relProps }) as z.SomeZodObject);
 
 type SimpleNodeCondition<P extends Properties = Properties> = {
   [K in keyof P]?: PropertyCondition<P[K]>;
@@ -64,7 +67,7 @@ const zSimpleNodeCondition = <P extends Properties>(props: P) => {
 };
 
 type SimpleReferenceCondition<P extends Properties> = {
-  [K in keyof P]?: PropertyCondition<z.infer<P[K]["zodType"]>>;
+  [K in keyof P]?: PropertyCondition<P[K]>;
 } & { $id?: number | number[]; $rid?: number | number[] };
 
 export const zSimpleReferenceCondition = <P extends Properties>(props: P) => {
@@ -94,7 +97,7 @@ const zSimplePropertyCondition = <P extends Property>(property: P) =>
     .object(property.nullable ? { null: z.boolean() } : {})
     .merge(
       property.array
-        ? z.object({ null: z.boolean() })
+        ? z.object({ contains: propertyZodTypes[property.propertyType] })
         : propertyConditionTypes[property.propertyType]
     )
     .strict()
