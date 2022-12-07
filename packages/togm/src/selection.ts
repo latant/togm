@@ -12,7 +12,7 @@ import { CypherNode, Identifier, identifier, MapEntry, WHERE } from "./cypher";
 import { Entities, GraphDefinition, NodeDefinition } from "./definition";
 import { coercedPropertyZodTypes } from "./property";
 import { MatchProvider, NodeExpressionProvider, runReadQuery } from "./read";
-import { Reference, WithMultiplicity } from "./reference";
+import { Reference, WithMultiplicity, zWithMultiplicity } from "./reference";
 import { getValues } from "./util";
 
 export type NodeSelectionDefinitionMembers<E extends Entities, N extends NodeDefinition> = {
@@ -174,8 +174,7 @@ const referenceSelectionResultType = (def: ReferenceSelectionDefinition) => {
   fields.$id = coercedPropertyZodTypes.number;
   fields.$rid = coercedPropertyZodTypes.number;
   const type = z.strictObject(fields);
-  const m = def.reference.multiplicity;
-  return m === "many" ? type.array() : m === "opt" ? type.nullable() : type;
+  return zWithMultiplicity(def.reference.multiplicity, type);
 };
 
 const nodeSelectionCypher = (def: NodeSelectionDefinition, node: Identifier): CypherNode => {
