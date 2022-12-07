@@ -3,19 +3,19 @@ import { MATCH } from "./cypher";
 import { loadMoviesExample, moviesGraph } from "./test/movies";
 import { loadNorthwindExample, northwindGraph } from "./test/northwind";
 import { expectException, expectValid, useTestDatabase } from "./test/testUtils";
-import { readTransaction, writeTransaction } from "./transaction";
+import { neo } from "./togm";
 
 describe("test type-safe graph selections", () => {
   const driver = useTestDatabase();
 
   it("should include multiple nodes one hop away from the root", async () => {
     const graph = moviesGraph();
-    await writeTransaction(driver, async () => {
+    await neo.writeTransaction(driver, async () => {
       await loadMoviesExample();
     });
     const selection = graph.select.Movie({ actors: {} });
-    const findResult = await readTransaction(driver, () => selection.find({}));
-    const findOneResult = await readTransaction(driver, () => selection.findOne({}));
+    const findResult = await neo.readTransaction(driver, () => selection.find({}));
+    const findOneResult = await neo.readTransaction(driver, () => selection.findOne({}));
     const type = z.strictObject({
       $id: z.number(),
       title: z.string(),
@@ -37,12 +37,12 @@ describe("test type-safe graph selections", () => {
 
   it("should include multiple nodes two hop away from the root", async () => {
     const graph = moviesGraph();
-    await writeTransaction(driver, async () => {
+    await neo.writeTransaction(driver, async () => {
       await loadMoviesExample();
     });
     const selection = graph.select.Movie({ actors: { moviesActedIn: {} } });
-    const findResult = await readTransaction(driver, () => selection.find({}));
-    const findOneResult = await readTransaction(driver, () => selection.findOne({}));
+    const findResult = await neo.readTransaction(driver, () => selection.find({}));
+    const findOneResult = await neo.readTransaction(driver, () => selection.findOne({}));
     const type = z.strictObject({
       $id: z.number(),
       title: z.string(),
@@ -74,12 +74,12 @@ describe("test type-safe graph selections", () => {
 
   it("should include single nodes one hop away from the root", async () => {
     const graph = northwindGraph();
-    await writeTransaction(driver, async () => {
+    await neo.writeTransaction(driver, async () => {
       await loadNorthwindExample();
     });
     const selection = graph.select.Product({ category: {} });
-    const findResult = await readTransaction(driver, () => selection.find({}));
-    const findOneResult = await readTransaction(driver, () => selection.findOne({}));
+    const findResult = await neo.readTransaction(driver, () => selection.find({}));
+    const findOneResult = await neo.readTransaction(driver, () => selection.findOne({}));
     const type = z.strictObject({
       $id: z.number(),
       unitPrice: z.number(),
@@ -130,17 +130,17 @@ describe("test type-safe graph selections", () => {
 
   it("should use match provider for selection correctly", async () => {
     const graph = moviesGraph();
-    await writeTransaction(driver, loadMoviesExample);
-    const foundMovies = await readTransaction(driver, () => graph.select.Movie({}).find({}));
-    const foundMovie = await readTransaction(driver, () => graph.select.Movie({}).findOne({}));
-    const matchedMovies = await readTransaction(driver, () =>
+    await neo.writeTransaction(driver, loadMoviesExample);
+    const foundMovies = await neo.readTransaction(driver, () => graph.select.Movie({}).find({}));
+    const foundMovie = await neo.readTransaction(driver, () => graph.select.Movie({}).findOne({}));
+    const matchedMovies = await neo.readTransaction(driver, () =>
       graph.select.Movie({}).match({
         cypher(n) {
           return [MATCH, "(", n, ":Movie)"];
         },
       })
     );
-    const matchedMovie = await readTransaction(driver, () =>
+    const matchedMovie = await neo.readTransaction(driver, () =>
       graph.select.Movie({}).matchOne({
         cypher(n) {
           return [MATCH, "(", n, ":Movie)"];

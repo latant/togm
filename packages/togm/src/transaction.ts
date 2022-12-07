@@ -1,6 +1,6 @@
 import { createNamespace } from "cls-hooked";
 import { Driver, Result, Session, Transaction } from "neo4j-driver";
-import { CypherNode, generateQuery } from "./cypher";
+import { CypherNode, joinCypher } from "./cypher";
 import { error } from "./util";
 
 export const runSession = async <R>(driver: Driver, block: (session: Session) => Promise<R>) => {
@@ -37,5 +37,5 @@ export const runQuery = (
   cypher: CypherNode,
   transaction: Transaction = getTransaction()
 ): Result => {
-  return transaction.run(generateQuery(cypher));
+  return transaction.run(joinCypher(cypher));
 };

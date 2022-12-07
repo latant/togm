@@ -15,26 +15,24 @@ import {
   Point,
 } from "neo4j-driver";
 import { z } from "zod";
-import { defineNode, defineRelationship } from "./definition";
 import { propertyFactories } from "./property";
 import { referenceFactories } from "./reference";
 import { loadMoviesExample, moviesGraph } from "./test/movies";
 import { expectValid, useTestDatabase } from "./test/testUtils";
-import { ogm } from "./togm";
-import { readTransaction, writeTransaction } from "./transaction";
-import { bulkUpdate, CreateNode } from "./update";
+import { neo, ogm } from "./togm";
+import { CreateNode } from "./update";
 import { getKeys } from "./util";
 
 describe("definition tests", () => {
   const driver = useTestDatabase();
 
   it("should label node definitions as 'node'", () => {
-    const User = defineNode({});
+    const User = ogm.node({});
     expect(User.type).toBe("node");
   });
 
   it("should label relationship definitions as 'relationship'", () => {
-    const KNOWS = defineRelationship({});
+    const KNOWS = ogm.relationship({});
     expect(KNOWS.type).toBe("relationship");
   });
 
@@ -97,8 +95,8 @@ describe("definition tests", () => {
         })
       );
     }
-    await writeTransaction(driver, () => bulkUpdate(creations));
-    const nodes = await readTransaction(driver, () => graph.select.Node({}).find({}));
+    await neo.writeTransaction(driver, () => neo.update(creations));
+    const nodes = await neo.readTransaction(driver, () => graph.select.Node({}).find({}));
     expect(nodes.length).toBe(10);
     expectValid(
       nodes,
@@ -133,8 +131,8 @@ describe("definition tests", () => {
         })
       );
     }
-    await writeTransaction(driver, () => bulkUpdate(creations));
-    const nodes = await readTransaction(driver, () => graph.select.Node({}).find({}));
+    await neo.writeTransaction(driver, () => neo.update(creations));
+    const nodes = await neo.readTransaction(driver, () => graph.select.Node({}).find({}));
     expect(nodes.length).toBe(10);
     expectValid(
       nodes,
@@ -158,14 +156,16 @@ describe("definition tests", () => {
       }),
       HAS_PHONE: ogm.relationship({}),
     });
-    await writeTransaction(driver, async () => {
+    await neo.writeTransaction(driver, async () => {
       const u0 = graph.create.User({});
       const u1 = graph.create.User({});
       const p = graph.create.Phone({ value: "+36702555555" });
       const r = graph.create.HAS_PHONE(u0, p, {});
-      await bulkUpdate([u0, u1, p, r]);
+      await neo.update([u0, u1, p, r]);
     });
-    const nodes = await readTransaction(driver, () => graph.select.User({ phone: {} }).find({}));
+    const nodes = await neo.readTransaction(driver, () =>
+      graph.select.User({ phone: {} }).find({})
+    );
     expect(nodes.length).toBe(2);
     expectValid(
       nodes,
@@ -186,21 +186,21 @@ describe("definition tests", () => {
 
   it("should correctly update node with type-safe wrappers", async () => {
     const graph = moviesGraph();
-    await writeTransaction(driver, () => loadMoviesExample());
-    const movie = await readTransaction(driver, () =>
+    await neo.writeTransaction(driver, () => loadMoviesExample());
+    const movie = await neo.readTransaction(driver, () =>
       graph.select.Movie({}).findOne({
         title: { "=": "Something's Gotta Give" },
       })
     );
-    await writeTransaction(driver, () =>
-      bulkUpdate([
+    await neo.writeTransaction(driver, () =>
+      neo.update([
         graph.update.Movie(movie!.$id, {
           tagline: "awesome tagline",
           title: "Something",
         }),
       ])
     );
-    const updatedMovie = await readTransaction(driver, () =>
+    const updatedMovie = await neo.readTransaction(driver, () =>
       graph.select.Movie({}).findOne({
         title: { "=": "Something" },
       })
@@ -212,21 +212,21 @@ describe("definition tests", () => {
 
   it("should correctly update relationship with type-safe wrappers", async () => {
     const graph = moviesGraph();
-    await writeTransaction(driver, () => loadMoviesExample());
-    const person = await readTransaction(driver, () =>
+    await neo.writeTransaction(driver, () => loadMoviesExample());
+    const person = await neo.readTransaction(driver, () =>
       graph.select.Person({ moviesActedIn: {} }).findOne({
         name: { "=": "Keanu Reeves" },
       })
     );
     const relId = person!.moviesActedIn.find((m) => m.roles.includes("Julian Mercer"))!.$rid;
-    await writeTransaction(driver, () =>
-      bulkUpdate([
+    await neo.writeTransaction(driver, () =>
+      neo.update([
         graph.update.ACTED_IN(relId, {
           roles: ["Neo", "Julian Mercer"],
         }),
       ])
     );
-    const movie = await readTransaction(driver, () =>
+    const movie = await neo.readTransaction(driver, () =>
       graph.select.Movie({ actors: {} }).findOne({
         title: { "=": "Something's Gotta Give" },
       })

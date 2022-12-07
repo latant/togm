@@ -49,7 +49,7 @@ export const IN = keyword("IN");
 export const IS = keyword("IS");
 export const OR = keyword("OR");
 
-export const generateQuery = (...root: CypherNode[]) => {
+export const joinCypher = (...root: CypherNode[]) => {
   const strings: string[] = [];
   let genIdCount = 0;
   let afterKeyword = false;

@@ -3,18 +3,8 @@ import { Date as NeoDate, Node, Relationship } from "neo4j-driver";
 import { loadMoviesExample } from "./test/movies";
 import { loadNorthwindExample } from "./test/northwind";
 import { expectException, useTestDatabase } from "./test/testUtils";
-import { readTransaction, runQuery, writeTransaction } from "./transaction";
-import {
-  bulkUpdate,
-  CreateNode,
-  createNodes,
-  CreateRelationship,
-  createRelationships,
-  deleteNodes,
-  deleteRelationships,
-  updateNodes,
-  updateRelationships,
-} from "./update";
+import { neo } from "./togm";
+import { CreateNode, CreateRelationship } from "./update";
 import { getKeys } from "./util";
 
 describe("testing graph updating functions", () => {
@@ -36,13 +26,13 @@ describe("testing graph updating functions", () => {
       labels: ["User", "Admin"],
       properties: { username: "username" },
     };
-    await writeTransaction(driver, async () => {
-      await createNodes([node0, node1, node2]);
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([node0, node1, node2]);
     });
     expect(typeof node0.id).toBe("number");
     expect(typeof node1.id).toBe("number");
     expect(typeof node2.id).toBe("number");
-    const result = await readTransaction(driver, () => runQuery("MATCH (n) RETURN n"));
+    const result = await neo.readTransaction(driver, () => neo.runQuery("MATCH (n) RETURN n"));
     expect(result.records.length).toBe(3);
     const nodes = result.records.map((r) => r.get("n") as Node);
     expect(nodes[0].labels).toEqual([]);
@@ -59,8 +49,8 @@ describe("testing graph updating functions", () => {
       type: "createNode",
       id: undefined,
     };
-    await writeTransaction(driver, async () => {
-      await createNodes([node]);
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([node]);
     });
     const rel0: CreateRelationship = {
       type: "createRelationship",
@@ -79,12 +69,14 @@ describe("testing graph updating functions", () => {
       relationshipType: "RELATES_TO",
       properties: { since: SINCE },
     };
-    await writeTransaction(driver, async () => {
-      await createRelationships([rel0, rel1]);
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([rel0, rel1]);
     });
     expect(typeof rel0.id).toBe("number");
     expect(typeof rel1.id).toBe("number");
-    const result = await readTransaction(driver, () => runQuery("MATCH ()-[r]->() RETURN r"));
+    const result = await neo.readTransaction(driver, () =>
+      neo.runQuery("MATCH ()-[r]->() RETURN r")
+    );
     const rels = result.records.map((r) => r.get("r") as Relationship);
     expect(rels[0].type).toBe("RELATES_TO");
     expect(rels[0].properties).toEqual({});
@@ -101,13 +93,14 @@ describe("testing graph updating functions", () => {
       type: "createNode",
       id: undefined,
     };
-    await writeTransaction(driver, async () => {
-      await createNodes([node]);
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([node]);
     });
     await expectException(async () => {
-      await writeTransaction(driver, async () => {
-        await createRelationships([
+      await neo.writeTransaction(driver, async () => {
+        await neo.update([
           {
+            type: "createRelationship",
             start: node,
             end: {},
             relationshipType: "RELATES_TO",
@@ -119,9 +112,10 @@ describe("testing graph updating functions", () => {
 
   it("should throw exception when a given relationship member node id is wrong", async () => {
     await expectException(async () => {
-      await writeTransaction(driver, async () => {
-        await createRelationships([
+      await neo.writeTransaction(driver, async () => {
+        await neo.update([
           {
+            type: "createRelationship",
             start: 0,
             end: 1,
             relationshipType: "RELATES_TO",
@@ -132,29 +126,29 @@ describe("testing graph updating functions", () => {
   });
 
   it("should create the same movie graph as the example cypher does", async () => {
-    await writeTransaction(driver, async () => {
-      await runQuery(readFileSync("src/test/movies.cypher").toString());
+    await neo.writeTransaction(driver, async () => {
+      await neo.runQuery(readFileSync("src/test/movies.cypher").toString());
     });
-    const originalNodes = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH (n) return n");
+    const originalNodes = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH (n) return n");
       return result.records.map((r) => r.get("n") as Node);
     });
-    const originalRelationships = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH ()-[r]->() return r");
+    const originalRelationships = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH ()-[r]->() return r");
       return result.records.map((r) => r.get("r") as Relationship);
     });
-    await writeTransaction(driver, async () => {
-      await runQuery("MATCH (n) DETACH DELETE n");
+    await neo.writeTransaction(driver, async () => {
+      await neo.runQuery("MATCH (n) DETACH DELETE n");
     });
-    await writeTransaction(driver, async () => {
+    await neo.writeTransaction(driver, async () => {
       await loadMoviesExample();
     });
-    const createdNodes = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH (n) return n");
+    const createdNodes = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH (n) return n");
       return result.records.map((r) => r.get("n") as Node);
     });
-    const createdRelationships = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH ()-[r]->() return r");
+    const createdRelationships = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH ()-[r]->() return r");
       return result.records.map((r) => r.get("r") as Relationship);
     });
     expect(createdNodes.length).toBe(originalNodes.length);
@@ -162,29 +156,29 @@ describe("testing graph updating functions", () => {
   });
 
   it("should create the same northwind graph as the example cypher does", async () => {
-    await writeTransaction(driver, async () => {
-      await runQuery(readFileSync("src/test/northwind.cypher").toString());
+    await neo.writeTransaction(driver, async () => {
+      await neo.runQuery(readFileSync("src/test/northwind.cypher").toString());
     });
-    const originalNodes = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH (n) return n");
+    const originalNodes = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH (n) return n");
       return result.records.map((r) => r.get("n") as Node);
     });
-    const originalRelationships = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH ()-[r]->() return r");
+    const originalRelationships = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH ()-[r]->() return r");
       return result.records.map((r) => r.get("r") as Relationship);
     });
-    await writeTransaction(driver, async () => {
-      await runQuery("MATCH (n) DETACH DELETE n");
+    await neo.writeTransaction(driver, async () => {
+      await neo.runQuery("MATCH (n) DETACH DELETE n");
     });
-    await writeTransaction(driver, async () => {
+    await neo.writeTransaction(driver, async () => {
       await loadNorthwindExample();
     });
-    const createdNodes = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH (n) return n");
+    const createdNodes = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH (n) return n");
       return result.records.map((r) => r.get("n") as Node);
     });
-    const createdRelationships = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH ()-[r]->() return r");
+    const createdRelationships = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH ()-[r]->() return r");
       return result.records.map((r) => r.get("r") as Relationship);
     });
     expect(createdNodes.length).toBe(originalNodes.length);
@@ -192,53 +186,56 @@ describe("testing graph updating functions", () => {
   });
 
   it("should update node properties correctly", async () => {
-    await writeTransaction(driver, async () => {
-      await createNodes([{}]);
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([{ type: "createNode" }]);
     });
-    let node = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH (n) RETURN n");
+    let node = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH (n) RETURN n");
       return result.records[0].get("n") as Node;
     });
     expect(node.properties).toEqual({});
     // adds a property if not present
-    await writeTransaction(driver, async () => {
-      await updateNodes([
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([
         {
+          type: "updateNode",
           node: node.identity.toNumber(),
           properties: { firstName: "John", lastName: "Doe" },
         },
       ]);
     });
-    node = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH (n) RETURN n");
+    node = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH (n) RETURN n");
       return result.records[0].get("n") as Node;
     });
     expect(node.properties).toEqual({ firstName: "John", lastName: "Doe" });
     // updates a property but does not touch others
-    await writeTransaction(driver, async () => {
-      await updateNodes([
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([
         {
+          type: "updateNode",
           node: node.identity.toNumber(),
           properties: { lastName: "Wick" },
         },
       ]);
     });
-    node = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH (n) RETURN n");
+    node = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH (n) RETURN n");
       return result.records[0].get("n") as Node;
     });
     expect(node.properties).toEqual({ firstName: "John", lastName: "Wick" });
     // removes a property
-    await writeTransaction(driver, async () => {
-      await updateNodes([
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([
         {
+          type: "updateNode",
           node: node.identity.toNumber(),
           properties: { lastName: null },
         },
       ]);
     });
-    node = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH (n) RETURN n");
+    node = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH (n) RETURN n");
       return result.records[0].get("n") as Node;
     });
     expect(node.properties).toEqual({ firstName: "John" });
@@ -246,9 +243,10 @@ describe("testing graph updating functions", () => {
 
   it("should throw exception when a given updated node id is wrong", async () => {
     await expectException(async () => {
-      await writeTransaction(driver, async () => {
-        await updateNodes([
+      await neo.writeTransaction(driver, async () => {
+        await neo.update([
           {
+            type: "updateNode",
             node: 0,
             properties: {},
           },
@@ -258,53 +256,56 @@ describe("testing graph updating functions", () => {
   });
 
   it("should update relationship properties correctly", async () => {
-    await writeTransaction(driver, async () => {
-      await runQuery("CREATE ()-[:RELATES_TO]->()");
+    await neo.writeTransaction(driver, async () => {
+      await neo.runQuery("CREATE ()-[:RELATES_TO]->()");
     });
-    let rel = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH ()-[r]->() RETURN r");
+    let rel = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH ()-[r]->() RETURN r");
       return result.records[0].get("r") as Relationship;
     });
     expect(rel.properties).toEqual({});
     // adds a property if not present
-    await writeTransaction(driver, async () => {
-      await updateRelationships([
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([
         {
+          type: "updateRelationship",
           relationship: rel.identity.toNumber(),
           properties: { firstName: "John", lastName: "Doe" },
         },
       ]);
     });
-    rel = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH ()-[r]->() RETURN r");
+    rel = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH ()-[r]->() RETURN r");
       return result.records[0].get("r") as Relationship;
     });
     expect(rel.properties).toEqual({ firstName: "John", lastName: "Doe" });
     // updates a property but does not touch others
-    await writeTransaction(driver, async () => {
-      await updateRelationships([
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([
         {
+          type: "updateRelationship",
           relationship: rel.identity.toNumber(),
           properties: { lastName: "Wick" },
         },
       ]);
     });
-    rel = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH ()-[r]->() RETURN r");
+    rel = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH ()-[r]->() RETURN r");
       return result.records[0].get("r") as Relationship;
     });
     expect(rel.properties).toEqual({ firstName: "John", lastName: "Wick" });
     // removes a property
-    await writeTransaction(driver, async () => {
-      await updateRelationships([
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([
         {
+          type: "updateRelationship",
           relationship: rel.identity.toNumber(),
           properties: { lastName: null },
         },
       ]);
     });
-    rel = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH ()-[r]->() RETURN r");
+    rel = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH ()-[r]->() RETURN r");
       return result.records[0].get("r") as Relationship;
     });
     expect(rel.properties).toEqual({ firstName: "John" });
@@ -312,9 +313,10 @@ describe("testing graph updating functions", () => {
 
   it("should throw exception when a given updated relationship id is wrong", async () => {
     await expectException(async () => {
-      await writeTransaction(driver, async () => {
-        await updateRelationships([
+      await neo.writeTransaction(driver, async () => {
+        await neo.update([
           {
+            type: "updateRelationship",
             relationship: 0,
             properties: {},
           },
@@ -324,56 +326,58 @@ describe("testing graph updating functions", () => {
   });
 
   it("should delete node correctly", async () => {
-    await writeTransaction(driver, async () => {
-      await createNodes([{}]);
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([{ type: "createNode" }]);
     });
-    const node = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH (n) RETURN n");
+    const node = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH (n) RETURN n");
       return result.records[0].get("n") as Node;
     });
-    await writeTransaction(driver, async () => {
-      await deleteNodes([{ node: node.identity.toNumber() }]);
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([{ type: "deleteNode", node: node.identity.toNumber() }]);
     });
-    const result = await readTransaction(driver, () => runQuery("MATCH (n) RETURN n"));
+    const result = await neo.readTransaction(driver, () => neo.runQuery("MATCH (n) RETURN n"));
     expect(result.records.length).toBe(0);
   });
 
   it("should delete relationship correctly", async () => {
-    await writeTransaction(driver, async () => {
-      await runQuery("CREATE ()-[:RELATES_TO]->()");
+    await neo.writeTransaction(driver, async () => {
+      await neo.runQuery("CREATE ()-[:RELATES_TO]->()");
     });
-    const rel = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH ()-[r]->() RETURN r");
+    const rel = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH ()-[r]->() RETURN r");
       return result.records[0].get("r") as Relationship;
     });
-    await writeTransaction(driver, async () => {
-      await deleteRelationships([{ relationship: rel.identity.toNumber() }]);
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([{ type: "deleteRelationship", relationship: rel.identity.toNumber() }]);
     });
-    const result = await readTransaction(driver, () => runQuery("MATCH ()-[r]->() RETURN r"));
+    const result = await neo.readTransaction(driver, () =>
+      neo.runQuery("MATCH ()-[r]->() RETURN r")
+    );
     expect(result.records.length).toBe(0);
   });
 
   it("should not do anything when bulkCreate is called with an empty array", async () => {
-    await writeTransaction(driver, async () => {
-      await runQuery(readFileSync("src/test/movies.cypher").toString());
+    await neo.writeTransaction(driver, async () => {
+      await neo.runQuery(readFileSync("src/test/movies.cypher").toString());
     });
-    const originalNodes = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH (n) return n");
+    const originalNodes = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH (n) return n");
       return result.records.map((r) => r.get("n") as Node);
     });
-    const originalRelationships = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH ()-[r]->() return r");
+    const originalRelationships = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH ()-[r]->() return r");
       return result.records.map((r) => r.get("r") as Relationship);
     });
-    await writeTransaction(driver, async () => {
-      await bulkUpdate([]);
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([]);
     });
-    const leftNodes = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH (n) return n");
+    const leftNodes = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH (n) return n");
       return result.records.map((r) => r.get("n") as Node);
     });
-    const leftRelationships = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH ()-[r]->() return r");
+    const leftRelationships = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH ()-[r]->() return r");
       return result.records.map((r) => r.get("r") as Relationship);
     });
     expect(leftNodes).toEqual(originalNodes);
@@ -424,14 +428,15 @@ describe("testing graph updating functions", () => {
       end: node2,
       relationshipType: "NEW_IMPLICITLY_DELETED_REL",
     };
-    await writeTransaction(driver, async () => {
-      await bulkUpdate([
+    await neo.writeTransaction(driver, async () => {
+      await neo.update([
         node0,
         node1,
         node2,
         rel0,
         rel1,
         rel2,
+        rel3,
         {
           type: "updateNode",
           node: node1,
@@ -446,12 +451,12 @@ describe("testing graph updating functions", () => {
         { type: "deleteRelationship", relationship: rel2 },
       ]);
     });
-    const nodes = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH (n) RETURN n");
+    const nodes = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH (n) RETURN n");
       return result.records.map((r) => r.get("n") as Node);
     });
-    const rels = await readTransaction(driver, async () => {
-      const result = await runQuery("MATCH ()-[r]->() RETURN r");
+    const rels = await neo.readTransaction(driver, async () => {
+      const result = await neo.runQuery("MATCH ()-[r]->() RETURN r");
       return result.records.map((r) => r.get("r") as Relationship);
     });
     expect(nodes.length).toBe(2);
