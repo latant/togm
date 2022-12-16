@@ -9,8 +9,8 @@ import {
   ValidMembers,
 } from "./definition";
 import { PropRecord } from "./property";
+import { createNodeQueries, NodeQueries } from "./query";
 import {
-  createNodeSelection,
   NodeSelection,
   NodeSelectionDefinition,
   NodeSelectionDefinitionMembers,
@@ -19,10 +19,10 @@ import { CreateNode, CreateRelationship, Id, UpdateNode, UpdateRelationship } fr
 import { DeepStrict } from "./util";
 
 type NodeModel<E extends Entities = Entities, N extends NodeDefinition = NodeDefinition> = N & {
-  select: SelectNodeFunction<E, N>;
+  // select: SelectNodeFunction<E, N>;
   create: CreateNodeFunction<E, N>;
   update: UpdateNodeFunction<N["properties"]>;
-};
+} & NodeQueries<E, N>;
 
 type RelationshipModel<R extends RelationshipDefinition = RelationshipDefinition> = R & {
   create: CreateRelationshipFunction<R>;
@@ -72,9 +72,7 @@ const createNodeModel = (graph: GraphDefinition, label: string): NodeModel => {
   const node = graph.nodes[label];
   return {
     ...node,
-    select(members: unknown) {
-      return createNodeSelection(graph, label, node, graph.selectionTypes[label].parse(members));
-    },
+    ...createNodeQueries(graph, label),
     create(props: unknown, opts?: { additionalLabels?: string[] }) {
       const labels = new Set<string>(opts?.additionalLabels ?? []);
       labels.add(label);

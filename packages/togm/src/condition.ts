@@ -1,24 +1,22 @@
 /* eslint-disable @typescript-eslint/ban-types */
-import { z, ZodObject } from "zod";
+import { z } from "zod";
 import {
   AND,
   CONTAINS,
   CypherNode,
+  cypherParameter,
   ENDS,
   identifier,
   Identifier,
   IN,
   IS,
-  MATCH,
   NOT,
   NULL,
   OR,
-  parameter,
   STARTS,
-  WHERE,
   WITH,
 } from "./cypher";
-import { NodeDefinition, Properties } from "./definition";
+import { Properties } from "./definition";
 import {
   coercedPropertyZodTypes,
   Property,
@@ -26,7 +24,42 @@ import {
   propertyZodTypes,
   TSProperty,
 } from "./property";
-import { MatchProvider } from "./read";
+import { IntersectVals } from "./util";
+
+export type QueryParameter = z.infer<typeof zQueryParameter>;
+const zQueryParameter = z.object({
+  type: z.literal("queryParameter"),
+  name: z.string(),
+});
+
+const isQueryParameter = (value: any): value is QueryParameter => value.type === "queryParameter";
+
+export const queryParameter = <P extends string>(name: P) =>
+  ({ type: "queryParameter", name } satisfies QueryParameter);
+
+type PropertyValueParameters<T, V> = V extends QueryParameter ? { [K in V["name"]]: T } : {};
+
+type PropertyConditionParameters<T, C> = IntersectVals<{
+  [K in keyof C]: K extends RecursiveKey
+    ? PropertyConditionParameters<T, C[K]>
+    : PropertyValueParameters<T, C[K]>;
+}>;
+
+export type ReferenceConditionParameters<
+  N extends Properties,
+  R extends Properties,
+  C
+> = ConditionParameters<N & Omit<R, keyof N>, C>;
+
+export type ConditionParameters<P extends Properties, C> = IntersectVals<{
+  [K in keyof C]: K extends RecursiveKey
+    ? ConditionParameters<P, C[K]>
+    : K extends keyof P
+    ? PropertyConditionParameters<z.infer<P[K]["zodType"]>, C[K]>
+    : never;
+}>;
+
+type RecursiveKey = "$all" | "$any" | "$not";
 
 type All<T> = T & { $any?: Any<T>; $not?: All<T> };
 
@@ -55,7 +88,7 @@ export const zReferenceCondition = <N extends Properties, R extends Properties>(
 
 type SimpleNodeCondition<P extends Properties = Properties> = {
   [K in keyof P]?: PropertyCondition<P[K]>;
-} & { $id?: number | number[] };
+} & { $id?: number | number[] | QueryParameter };
 
 const zSimpleNodeCondition = <P extends Properties>(props: P) => {
   const fields = {} as { [key: string]: z.ZodType };
@@ -68,15 +101,15 @@ const zSimpleNodeCondition = <P extends Properties>(props: P) => {
 
 type SimpleReferenceCondition<P extends Properties> = {
   [K in keyof P]?: PropertyCondition<P[K]>;
-} & { $id?: number | number[]; $rid?: number | number[] };
+} & { $id?: number | number[] | QueryParameter; $rid?: number | number[] | QueryParameter };
 
 export const zSimpleReferenceCondition = <P extends Properties>(props: P) => {
   const fields = {} as { [key: string]: z.ZodType };
   for (const k in props) {
     fields[k] = zPropertyCondition(props[k]);
   }
-  fields.$id = z.number().or(z.number().array());
-  fields.$rid = z.number().or(z.number().array());
+  fields.$id = z.number().or(z.number().array()).or(zQueryParameter);
+  fields.$rid = z.number().or(z.number().array()).or(zQueryParameter);
   return z.object(fields).strict().partial() as z.ZodType<SimpleReferenceCondition<P>>;
 };
 
@@ -88,8 +121,8 @@ const zPropertyCondition = <P extends Property>(property: P) =>
 type SimplePropertyCondition<P extends Property> = Partial<
   (P["nullable"] extends true ? { null: boolean } : {}) &
     (P["array"] extends true
-      ? { contains: TSProperty[P["propertyType"]] }
-      : z.infer<PropertyConditionType<P["propertyType"]>>)
+      ? { contains: TSProperty[P["propertyType"]] | QueryParameter }
+      : SpecificPropertyCondition<P["propertyType"]>)
 >;
 
 const zSimplePropertyCondition = <P extends Property>(property: P) =>
@@ -97,83 +130,65 @@ const zSimplePropertyCondition = <P extends Property>(property: P) =>
     .object(property.nullable ? { null: z.boolean() } : {})
     .merge(
       property.array
-        ? z.object({ contains: propertyZodTypes[property.propertyType] })
-        : propertyConditionTypes[property.propertyType]
+        ? z.object({ contains: propertyZodTypes[property.propertyType].or(zQueryParameter) })
+        : zSpecificPropertyCondition(property.propertyType)
     )
     .strict()
     .partial() as unknown as z.ZodType<SimplePropertyCondition<P>>;
 
-const zStringCondition = z.object({
-  "=": z.string(),
-  contains: z.string(),
-  startsWith: z.string(),
-  endsWith: z.string(),
-});
-
-const zNumericCondition = <T extends PropertyType>(type: T) => {
-  const t = coercedPropertyZodTypes[type];
-  return z.object({ "=": t, "<": t, ">": t, "<=": t, ">=": t });
+type SpecificPropertyCondition<P extends PropertyType> = {
+  [K in typeof propertyConditionKeys[P][number]]: TSProperty[P] | QueryParameter;
 };
 
-type PropertyConditionType<P extends PropertyType> = typeof propertyConditionTypes[P];
-
-export const propertyConditionTypes = {
-  string: zStringCondition,
-  number: zNumericCondition("number"),
-  boolean: z.object({ "=": z.boolean() }),
-  duration: zNumericCondition("duration"),
-  localTime: zNumericCondition("localTime"),
-  date: zNumericCondition("date"),
-  localDateTime: zNumericCondition("localDateTime"),
-  dateTime: zNumericCondition("dateTime"),
-  point: z.object({}),
+const zSpecificPropertyCondition = (propertyType: PropertyType) => {
+  const t = coercedPropertyZodTypes[propertyType].or(zQueryParameter);
+  return z.object(Object.fromEntries(propertyConditionKeys[propertyType].map((k) => [k, t])));
 };
+
+export const propertyConditionKeys = {
+  string: ["=", "contains", "startsWith", "endsWith"],
+  number: ["=", "<", ">", "<=", ">="],
+  boolean: ["="],
+  duration: ["=", "<", ">", "<=", ">="],
+  localTime: ["=", "<", ">", "<=", ">="],
+  date: ["=", "<", ">", "<=", ">="],
+  localDateTime: ["=", "<", ">", "<=", ">="],
+  dateTime: ["=", "<", ">", "<=", ">="],
+  point: [],
+} as const satisfies Readonly<{ [K in PropertyType]: readonly string[] }>;
+
+type PropertyConditionKey =
+  | RecursiveKey
+  | "null"
+  | typeof propertyConditionKeys[PropertyType][number];
+
+type ConditionKey = RecursiveKey | "$id" | "$rid";
 
 type Op = "any" | "all";
 
-export const nodeMatchProvider = (
-  label: string,
-  node: NodeDefinition,
-  cond: unknown
-): MatchProvider => {
-  return {
-    cypher(n) {
-      const condCypher = conditionCypher("all", cond, {
-        properties: node.properties,
-        variable: n,
-      });
-      return [MATCH, "(", n, ":", identifier(label), ")", condCypher && [WHERE, condCypher]];
-    },
-  };
-};
-
-export type Entity = {
+type Entity = {
   properties: Properties;
   variable: Identifier;
 };
 
 const condEmitters: {
-  [key: string]: (value: any, node: Entity, relationship?: Entity) => CypherNode;
+  [K in ConditionKey]: (value: any, node: Entity, relationship?: Entity) => CypherNode;
 } = {
-  $all: (v, n, r) => conditionCypher("all", v, n, r),
-  $any: (v, n, r) => conditionCypher("any", v, n, r),
-  $not: (v, n, r) => ["(", NOT, conditionCypher("all", v, n, r), ")"],
-  $id: (v, n, r) => [
-    "(id(",
-    n.variable,
-    ")",
-    typeof v === "number" ? " = " : IN,
-    parameter(undefined, v),
-    ")",
-  ],
-  $rid: (v, n, r) => [
-    "(id(",
-    r!.variable,
-    ")",
-    typeof v === "number" ? " = " : IN,
-    parameter(undefined, v),
-    ")",
-  ],
+  $all(v, n, r) {
+    return conditionCypher("all", v, n, r);
+  },
+  $any(v, n, r) {
+    return conditionCypher("any", v, n, r);
+  },
+  $not(v, n, r) {
+    return ["(", NOT, conditionCypher("all", v, n, r), ")"];
+  },
+  $id(v, n, r) {
+    return ["(id(", n.variable, ")", typeof v === "number" ? " = " : IN, emitParameter(v), ")"];
+  },
+  $rid(v, n, r) {
+    return ["(id(", r!.variable, ")", typeof v === "number" ? " = " : IN, emitParameter(v), ")"];
+  },
 };
 
 export const conditionCypher = (
@@ -184,7 +199,7 @@ export const conditionCypher = (
 ): CypherNode => {
   const result: CypherNode[] = [];
   for (const k in condition) {
-    const emitter = condEmitters[k];
+    const emitter = condEmitters[k as ConditionKey];
     if (emitter) {
       result.push(emitter(condition[k], node, relationship));
     } else {
@@ -194,32 +209,61 @@ export const conditionCypher = (
       );
     }
   }
-  return joinOp(op, result);
+  return joinOpCypher(op, result);
+};
+
+const emitParameter = (value: any): CypherNode => {
+  return isQueryParameter(value)
+    ? [identifier("p"), ".", identifier(value.name)]
+    : cypherParameter(undefined, value);
 };
 
 const propCondEmitters: {
-  [key: string]: (
+  [K in PropertyConditionKey]: (
     propertyName: string,
     property: Property,
     entity: Identifier,
     value: any
   ) => CypherNode;
 } = {
-  $all: (n, p, e, v) => propConditionCypher("all", n, p, v, e),
-  $any: (n, p, e, v) => propConditionCypher("any", n, p, v, e),
-  $not: (n, p, e, v) => ["(", NOT, propConditionCypher("all", n, p, v, e), ")"],
-  "=": (n, p, e, v) => [e, ".", identifier(n), "=", parameter(undefined, v)],
-  "<": (n, p, e, v) => [e, ".", identifier(n), "<", parameter(undefined, v)],
-  ">": (n, p, e, v) => [e, ".", identifier(n), ">", parameter(undefined, v)],
-  "<=": (n, p, e, v) => [e, ".", identifier(n), "<=", parameter(undefined, v)],
-  ">=": (n, p, e, v) => [e, ".", identifier(n), ">=", parameter(undefined, v)],
-  contains: (n, p, e, v) =>
-    p.array
-      ? [parameter(undefined, v), IN, e, ".", identifier(n)]
-      : [e, ".", identifier(n), CONTAINS, parameter(undefined, v)],
-  startsWith: (n, p, e, v) => [e, ".", identifier(n), STARTS, WITH, parameter(undefined, v)],
-  ensWith: (n, p, e, v) => [e, ".", identifier(n), ENDS, WITH, parameter(undefined, v)],
-  null: (n, p, e, v) => [e, ".", identifier(n), v ? [IS, NULL] : [IS, NOT, NULL]],
+  $all(n, p, e, v) {
+    return propConditionCypher("all", n, p, v, e);
+  },
+  $any(n, p, e, v) {
+    return propConditionCypher("any", n, p, v, e);
+  },
+  $not(n, p, e, v) {
+    return ["(", NOT, propConditionCypher("all", n, p, v, e), ")"];
+  },
+  "="(n, p, e, v) {
+    return [e, ".", identifier(n), "=", emitParameter(v)];
+  },
+  "<"(n, p, e, v) {
+    return [e, ".", identifier(n), "<", emitParameter(v)];
+  },
+  ">"(n, p, e, v) {
+    return [e, ".", identifier(n), ">", emitParameter(v)];
+  },
+  "<="(n, p, e, v) {
+    return [e, ".", identifier(n), "<=", emitParameter(v)];
+  },
+  ">="(n, p, e, v) {
+    return [e, ".", identifier(n), ">=", emitParameter(v)];
+  },
+  contains(n, p, e, v) {
+    return p.array
+      ? [emitParameter(v), IN, e, ".", identifier(n)]
+      : [e, ".", identifier(n), CONTAINS, emitParameter(v)];
+  },
+  startsWith(n, p, e, v) {
+    return [e, ".", identifier(n), STARTS, WITH, emitParameter(v)];
+  },
+  endsWith(n, p, e, v) {
+    return [e, ".", identifier(n), ENDS, WITH, emitParameter(v)];
+  },
+  null(n, p, e, v) {
+    return [e, ".", identifier(n), v ? [IS, NULL] : [IS, NOT, NULL]];
+  },
 };
 
 const propConditionCypher = (
@@ -231,12 +275,14 @@ const propConditionCypher = (
 ): CypherNode => {
   const result: CypherNode[] = [];
   for (const k in condition) {
-    result.push(propCondEmitters[k](propertyName, property, entity, condition[k]));
+    result.push(
+      propCondEmitters[k as PropertyConditionKey](propertyName, property, entity, condition[k])
+    );
   }
-  return joinOp(op, result);
+  return joinOpCypher(op, result);
 };
 
-const joinOp = (op: Op, cyps: CypherNode[]): CypherNode => {
+const joinOpCypher = (op: Op, cyps: CypherNode[]): CypherNode => {
   const conds = cyps.filter((e) => e);
   if (conds.length === 0) {
     return undefined;
@@ -251,4 +297,92 @@ const joinOp = (op: Op, cyps: CypherNode[]): CypherNode => {
   }
   result.push(")");
   return result;
+};
+
+export type ParameterEntry = { name: string; type: z.ZodType };
+
+const nodeCondParamCollectors: {
+  [K in ConditionKey]: (value: any, properties: Properties) => ParameterEntry[];
+} = {
+  $all(v, p) {
+    return conditionParameters(v, p);
+  },
+  $any(v, p) {
+    return conditionParameters(v, p);
+  },
+  $not(v, p) {
+    return conditionParameters(v, p);
+  },
+  $id(v, p) {
+    return valueParameters(v, z.number().or(z.number().array()));
+  },
+  $rid(v, p) {
+    return valueParameters(v, z.number().or(z.number().array()));
+  },
+};
+
+export const conditionParameters = (condition: any, properties: Properties): ParameterEntry[] => {
+  const entries: ParameterEntry[] = [];
+  for (const k in condition) {
+    const collector = nodeCondParamCollectors[k as ConditionKey];
+    if (collector) {
+      entries.push(...collector(condition[k], properties));
+    } else {
+      entries.push(...propertyConditionParameters(condition[k], properties[k]));
+    }
+  }
+  return entries;
+};
+
+const propCondParamCollectors: {
+  [K in PropertyConditionKey]: (value: any, property: Property) => ParameterEntry[];
+} = {
+  $all(v, p) {
+    return propertyConditionParameters(v, p);
+  },
+  $any(v, p) {
+    return propertyConditionParameters(v, p);
+  },
+  $not(v, p) {
+    return propertyConditionParameters(v, p);
+  },
+  "="(v, p) {
+    return valueParameters(v, propertyZodTypes[p.propertyType]);
+  },
+  "<"(v, p) {
+    return valueParameters(v, propertyZodTypes[p.propertyType]);
+  },
+  ">"(v, p) {
+    return valueParameters(v, propertyZodTypes[p.propertyType]);
+  },
+  "<="(v, p) {
+    return valueParameters(v, propertyZodTypes[p.propertyType]);
+  },
+  ">="(v, p) {
+    return valueParameters(v, propertyZodTypes[p.propertyType]);
+  },
+  contains(v, p) {
+    return valueParameters(v, propertyZodTypes[p.propertyType]);
+  },
+  startsWith(v, p) {
+    return valueParameters(v, propertyZodTypes[p.propertyType]);
+  },
+  endsWith(v, p) {
+    return valueParameters(v, propertyZodTypes[p.propertyType]);
+  },
+  null(v, p) {
+    return valueParameters(v, propertyZodTypes[p.propertyType]);
+  },
+};
+
+const propertyConditionParameters = (condition: any, property: Property): ParameterEntry[] => {
+  const entries: ParameterEntry[] = [];
+  for (const k in condition) {
+    entries.push(...propCondParamCollectors[k as PropertyConditionKey](condition[k], property));
+  }
+  return entries;
+};
+
+const valueParameters = (value: any, type: z.ZodType): ParameterEntry[] => {
+  return isQueryParameter(value) ? [{ name: value.name, type }] : [];
 };

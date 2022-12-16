@@ -74,9 +74,7 @@ describe("testing graph updating functions", () => {
     });
     expect(typeof rel0.id).toBe("number");
     expect(typeof rel1.id).toBe("number");
-    const result = await neo.readTx(driver, () =>
-      neo.runQuery("MATCH ()-[r]->() RETURN r")
-    );
+    const result = await neo.readTx(driver, () => neo.runQuery("MATCH ()-[r]->() RETURN r"));
     const rels = result.records.map((r) => r.get("r") as Relationship);
     expect(rels[0].type).toBe("RELATES_TO");
     expect(rels[0].properties).toEqual({});
@@ -349,11 +347,11 @@ describe("testing graph updating functions", () => {
       return result.records[0].get("r") as Relationship;
     });
     await neo.writeTx(driver, async () => {
-      await neo.runCommands([{ type: "deleteRelationship", relationship: rel.identity.toNumber() }]);
+      await neo.runCommands([
+        { type: "deleteRelationship", relationship: rel.identity.toNumber() },
+      ]);
     });
-    const result = await neo.readTx(driver, () =>
-      neo.runQuery("MATCH ()-[r]->() RETURN r")
-    );
+    const result = await neo.readTx(driver, () => neo.runQuery("MATCH ()-[r]->() RETURN r"));
     expect(result.records.length).toBe(0);
   });
 

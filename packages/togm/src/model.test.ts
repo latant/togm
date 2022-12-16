@@ -96,7 +96,7 @@ describe("definition tests", () => {
       );
     }
     await neo.writeTx(driver, () => neo.runCommands(creations));
-    const nodes = await neo.readTx(driver, () => graph.Node.select({}).find({}));
+    const nodes = await neo.readTx(driver, () => graph.Node.findAll({}));
     expect(nodes.length).toBe(10);
     expectValid(
       nodes,
@@ -132,7 +132,7 @@ describe("definition tests", () => {
       );
     }
     await neo.writeTx(driver, () => neo.runCommands(creations));
-    const nodes = await neo.readTx(driver, () => graph.Node.select({}).find({}));
+    const nodes = await neo.readTx(driver, () => graph.Node.findAll({}));
     expect(nodes.length).toBe(10);
     expectValid(
       nodes,
@@ -163,9 +163,7 @@ describe("definition tests", () => {
       const r = graph.HAS_PHONE.create(u0, p, {});
       await neo.runCommands([u0, u1, p, r]);
     });
-    const nodes = await neo.readTx(driver, () =>
-      graph.User.select({ phone: {} }).find({})
-    );
+    const nodes = await neo.readTx(driver, () => graph.User.select({ phone: {} }).findAll({}));
     expect(nodes.length).toBe(2);
     expectValid(
       nodes,
@@ -214,9 +212,11 @@ describe("definition tests", () => {
     const graph = moviesGraph();
     await neo.writeTx(driver, () => loadMoviesExample());
     const person = await neo.readTx(driver, () =>
-      graph.Person.select({ moviesActedIn: {} }).findOne({
-        name: { "=": "Keanu Reeves" },
-      })
+      graph.Person.select({ moviesActedIn: {} })
+        .where({
+          name: { "=": "Keanu Reeves" },
+        })
+        .findOne({})
     );
     const relId = person!.moviesActedIn.find((m) => m.roles.includes("Julian Mercer"))!.$rid;
     await neo.writeTx(driver, () =>
@@ -227,9 +227,11 @@ describe("definition tests", () => {
       ])
     );
     const movie = await neo.readTx(driver, () =>
-      graph.Movie.select({ actors: {} }).findOne({
-        title: { "=": "Something's Gotta Give" },
-      })
+      graph.Movie.select({ actors: {} })
+        .where({
+          title: { "=": "Something's Gotta Give" },
+        })
+        .findOne({})
     );
     const actor = movie!.actors.find((a) => a.roles.includes("Julian Mercer"))!;
     expect(actor.$id).toBe(person?.$id);

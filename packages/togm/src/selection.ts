@@ -1,19 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Transaction } from "neo4j-driver";
 import { z } from "zod";
 import {
   conditionCypher,
-  NodeCondition,
-  nodeMatchProvider,
+  conditionParameters,
+  ParameterEntry,
   ReferenceCondition,
+  ReferenceConditionParameters,
   zReferenceCondition,
 } from "./condition";
-import { CypherNode, Identifier, identifier, joinCypher, MapEntry, WHERE } from "./cypher";
-import { Entities, GraphDefinition, NodeDefinition } from "./definition";
+import { CypherNode, Identifier, identifier, MapEntry, WHERE } from "./cypher";
+import { Entities, NodeDefinition } from "./definition";
 import { coercedPropertyZodTypes } from "./property";
-import { MatchProvider, NodeExpressionProvider, runReadOneQuery, runReadQuery } from "./read";
 import { Reference, WithMultiplicity, zWithMultiplicity } from "./reference";
-import { getValues } from "./util";
+import { getValues, IntersectVals } from "./util";
 
 export type NodeSelectionDefinitionMembers<E extends Entities, N extends NodeDefinition> = {
   [K in keyof N["references"]]?: ReferenceSelectionDefinitionMembers<E, N["references"][K]>;
@@ -88,7 +87,7 @@ type ReferenceSelectionDefinition<
 > = NodeSelectionDefinition<E, E["nodes"][R["label"]], M> & {
   reference: R;
   relationship: E["relationships"][R["relationshipType"]];
-  condition?: ReferenceCondition;
+  condition: "$where" extends keyof M ? M["$where"] : undefined;
 };
 
 export const defineNodeSelection = <E extends Entities, N extends NodeDefinition, M>(
@@ -119,17 +118,6 @@ const defineReferenceSelection = <E extends Entities, R extends Reference, M>(
   return { node, references, reference, relationship, condition: (members as any).$where };
 };
 
-export type NodeSelection<S extends NodeSelectionDefinition = NodeSelectionDefinition> =
-  NodeSelectionImpl<S, NodeSelectionResult<S>>;
-
-type NodeSelectionImpl<S extends NodeSelectionDefinition = NodeSelectionDefinition, T = unknown> = {
-  definition: S;
-  match: (p: MatchProvider, t?: Transaction) => Promise<T[]>;
-  matchOne: (p: MatchProvider, t?: Transaction) => Promise<T | undefined>;
-  find: (f: NodeCondition<S["node"]["properties"]>, t?: Transaction) => Promise<T[]>;
-  findOne: (f: NodeCondition<S["node"]["properties"]>, t?: Transaction) => Promise<T | undefined>;
-};
-
 export type NodeSelectionResult<S extends NodeSelectionDefinition> = { $id: number } & {
   [K in keyof S["references"]]: ReferenceSelectionResult<S["references"][K]>;
 } & {
@@ -148,7 +136,7 @@ type ReferenceSelectionResult<S extends ReferenceSelectionDefinition> = WithMult
   }
 >;
 
-const nodeSelectionResultType = (def: NodeSelectionDefinition) => {
+export const nodeSelectionResultType = (def: NodeSelectionDefinition) => {
   const fields = {} as { [key: string]: z.ZodType };
   for (const k in def.node.properties) {
     fields[k] = def.node.properties[k].zodType;
@@ -177,7 +165,7 @@ const referenceSelectionResultType = (def: ReferenceSelectionDefinition) => {
   return zWithMultiplicity(def.reference.multiplicity, type);
 };
 
-const nodeSelectionCypher = (def: NodeSelectionDefinition, node: Identifier): CypherNode => {
+export const nodeSelectionCypher = (def: NodeSelectionDefinition, node: Identifier): CypherNode => {
   const entries: Record<string, MapEntry> = {};
   for (const k in def.node.properties) {
     entries[k] = [identifier(k), [node, ".", identifier(k)]];
@@ -239,27 +227,30 @@ const selectedReferenceCypher = (
   ];
 };
 
-export const createNodeSelection = (
-  graph: GraphDefinition,
-  label: string,
-  node: NodeDefinition,
-  members: any
-): NodeSelection => {
-  const def = defineNodeSelection(graph, node, members);
-  const conditionType = graph.conditionTypes[label];
-  const exp: NodeExpressionProvider<any> = {
-    labels: [label],
-    cypher(n) {
-      return nodeSelectionCypher(def, n);
-    },
-    type: nodeSelectionResultType(def),
-  };
-  return {
-    definition: def,
-    match: (p, t) => runReadQuery(p, exp, t),
-    matchOne: (p, t) => runReadOneQuery(p, exp, t),
-    find: (c, t) => runReadQuery(nodeMatchProvider(label, node, conditionType.parse(c)), exp, t),
-    findOne: (c, t) =>
-      runReadOneQuery(nodeMatchProvider(label, node, conditionType.parse(c)), exp, t),
-  };
+export type NodeSelectionParameters<S extends NodeSelectionDefinition> = IntersectVals<{
+  [K in keyof S["references"]]: ReferenceSelectionParameters<S["references"][K]>;
+}>;
+
+type ReferenceSelectionParameters<S extends ReferenceSelectionDefinition> =
+  NodeSelectionParameters<S> &
+    ReferenceConditionParameters<
+      S["node"]["properties"],
+      S["relationship"]["properties"],
+      S["condition"]
+    >;
+
+export const nodeSelectionParameters = (definition: NodeSelectionDefinition): ParameterEntry[] => {
+  return Object.values(definition.references).flatMap(referenceSelectionParametersShape);
+};
+
+const referenceSelectionParametersShape = (
+  definition: ReferenceSelectionDefinition
+): ParameterEntry[] => {
+  return [
+    ...nodeSelectionParameters(definition),
+    ...conditionParameters(definition.condition ?? {}, {
+      ...definition.relationship.properties,
+      ...definition.node.properties,
+    }),
+  ];
 };

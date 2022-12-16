@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { MATCH } from "./cypher";
 import { loadMoviesExample, moviesGraph } from "./test/movies";
 import { loadNorthwindExample, northwindGraph } from "./test/northwind";
 import { expectException, expectValid, useTestDatabase } from "./test/testUtils";
@@ -14,7 +13,7 @@ describe("test type-safe graph selections", () => {
       await loadMoviesExample();
     });
     const selection = graph.Movie.select({ actors: {} });
-    const findResult = await neo.readTx(driver, () => selection.find({}));
+    const findResult = await neo.readTx(driver, () => selection.findAll({}));
     const findOneResult = await neo.readTx(driver, () => selection.findOne({}));
     const type = z.strictObject({
       $id: z.number(),
@@ -41,7 +40,7 @@ describe("test type-safe graph selections", () => {
       await loadMoviesExample();
     });
     const selection = graph.Movie.select({ actors: { moviesActedIn: {}, followers: {} } });
-    const findResult = await neo.readTx(driver, () => selection.find({}));
+    const findResult = await neo.readTx(driver, () => selection.findAll({}));
     const findOneResult = await neo.readTx(driver, () => selection.findOne({}));
     const type = z.strictObject({
       $id: z.number(),
@@ -87,7 +86,7 @@ describe("test type-safe graph selections", () => {
       await loadNorthwindExample();
     });
     const selection = graph.Product.select({ category: {} });
-    const findResult = await neo.readTx(driver, () => selection.find({}));
+    const findResult = await neo.readTx(driver, () => selection.findAll({}));
     const findOneResult = await neo.readTx(driver, () => selection.findOne({}));
     const type = z.strictObject({
       $id: z.number(),
@@ -117,29 +116,6 @@ describe("test type-safe graph selections", () => {
   it("should throw an exception when a selection field is not a member of the entity", async () => {
     const graph = northwindGraph();
     await expectException(() => graph.Product.select({ description: {} } as any));
-  });
-
-  it("should use match provider for selection correctly", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, loadMoviesExample);
-    const foundMovies = await neo.readTx(driver, () => graph.Movie.select({}).find({}));
-    const foundMovie = await neo.readTx(driver, () => graph.Movie.select({}).findOne({}));
-    const matchedMovies = await neo.readTx(driver, () =>
-      graph.Movie.select({}).match({
-        cypher(n) {
-          return [MATCH, "(", n, ":Movie)"];
-        },
-      })
-    );
-    const matchedMovie = await neo.readTx(driver, () =>
-      graph.Movie.select({}).matchOne({
-        cypher(n) {
-          return [MATCH, "(", n, ":Movie)"];
-        },
-      })
-    );
-    expect(matchedMovie).toEqual(foundMovie);
-    expect(matchedMovies).toEqual(foundMovies);
   });
 
   it("should generate where clause in the cypher of a selection using a reference condition", async () => {

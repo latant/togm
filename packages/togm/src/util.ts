@@ -13,7 +13,7 @@ type IsObject<T, R, Fallback = T> = IsFunction<T, Fallback, T extends object ? R
 type Tail<S> = S extends `${string}.${infer T}` ? Tail<T> : S;
 
 // typeof Object.values(T)
-type Value<T> = T[keyof T];
+type Val<T> = T[keyof T];
 
 // {a: {b: 1, c: 2}} => {"a.b": {b: 1, c: 2}, "a.c": {b: 1, c: 2}}
 type FlattenStepOne<T> = {
@@ -22,11 +22,11 @@ type FlattenStepOne<T> = {
     : K]: IsObject<T[K], { [key in keyof T[K]]: T[K][key] }>;
 };
 
-// {"a.b": {b: 1, c: 2}, "a.c": {b: 1, c: 2}} => {"a.b": {b: 1}, "a.c": {c: 2}}
+// {"a.b": {b: 1, c: 2}, "a.c": {b: 1, c: 2}} => {"a.b": 1, "a.c": 2}
 type FlattenStepTwo<T> = {
   [a in keyof T]: IsObject<
     T[a],
-    Value<{ [M in keyof T[a] as M extends Tail<a> ? M : never]: T[a][M] }>
+    Val<{ [M in keyof T[a] as M extends Tail<a> ? M : never]: T[a][M] }>
   >;
 };
 
@@ -61,9 +61,11 @@ type Impossible<K extends keyof any> = {
 
 export type Strict<T, U> = U & Impossible<Exclude<keyof U, keyof T>>;
 
-export type DeepStrict<T, U> = Strict<T, U> & {
+export type DeepStrict<T, U, Except = unknown> = Strict<T, U> & {
   // [K in keyof T & keyof U]: [NonNullable<T[K]>, U[K]]
-  [K in keyof T & keyof U as K]: DeepStrict<NonNullable<T[K]>, U[K]>;
+  [K in keyof T & keyof U as K]: Except extends T[K]
+    ? T[K]
+    : DeepStrict<NonNullable<T[K]>, U[K], Except>;
 };
 
 // type A = { b?: B; c: C };
@@ -73,11 +75,20 @@ export type DeepStrict<T, U> = Strict<T, U> & {
 // f({ b: {}, c: { a: { c: {} }, foo: "bar" }, foo: "bar" });
 // f({ c: {} });
 
-export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
-  k: infer I
-) => void
-  ? I
-  : never;
+// type X = IntersectStep1<{a: {b: 1, c: 2}}> // {"a.b": {b: 1, c: 2}, "a.c": {b: 1, c: 2}}
+type IntersectStep1<T> = {
+  [K in keyof T as `${K & string}.${keyof T[K] & string}`]: T[K];
+};
+
+// type X = IntersectStep2<{ "a.b": { b: 1; c: 2 } }>; // "a.c": {b: 1, c: 2}} => {"a.b": 1, "a.c": 2}
+type IntersectStep2<T> = {
+  [K in keyof T as Tail<K>]: Val<{
+    [L in keyof T[K] as L extends Tail<K> ? L : never]: T[K][L];
+  }>;
+};
+
+// type Y = IntersectVals<{ a: { a: string; b: string }; b: { a: number; c: number } }>;
+export type IntersectVals<T> = IntersectStep2<IntersectStep1<T>>;
 
 export type PickValuesExtend<T, V> = {
   [K in keyof T as T[K] extends V ? K : never]: T[K] extends V ? T[K] : never;

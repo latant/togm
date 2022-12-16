@@ -1,5 +1,5 @@
 import { defineNode, defineRelationship } from "./definition";
-import { createGraph } from "./graph";
+import { createGraph } from "./model";
 import { propertyFactories } from "./property";
 import { referenceFactories } from "./reference";
 import {
@@ -11,8 +11,10 @@ import {
 } from "./transaction";
 import { runCommands } from "./update";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
+// TODO: Do not depend on driver types
 import { Transaction, Session, Driver, Result } from "neo4j-driver";
-import { identifier, joinCypher, keyword, parameter } from "./cypher";
+import { identifier, joinCypher, keyword, cypherParameter } from "./cypher";
+import { queryParameter } from "./condition";
 
 /** Functions to use for creating a graph schema. */
 export const ogm = {
@@ -22,6 +24,8 @@ export const ogm = {
   node: defineNode,
   /** Creates a relationship definition. */
   relationship: defineRelationship,
+  /** Creates a query parameter in a type-safe condition. */
+  param: queryParameter,
   ...propertyFactories(),
   ...referenceFactories(),
 };
@@ -75,5 +79,5 @@ export const cyp = {
    * Creates a parameter token to be used as a cypher node.
    * The name of the parameter can be automatically generated.
    */
-  param: parameter,
+  param: cypherParameter,
 };

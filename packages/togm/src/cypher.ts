@@ -24,7 +24,7 @@ export const identifier = (identifier?: string): Identifier => ({
   type: "identifier",
   identifier,
 });
-export const parameter = (parameter: string | undefined, value?: unknown): CypherNode => ({
+export const cypherParameter = (parameter: string | undefined, value?: unknown): CypherNode => ({
   type: "parameter",
   parameter: identifier(parameter),
   value,
@@ -50,7 +50,7 @@ export const IN = keyword("IN");
 export const IS = keyword("IS");
 export const OR = keyword("OR");
 
-export const joinCypher = (...root: CypherNode[]) => {
+export const joinCypher = (...root: CypherNode[]): Query => {
   const strings: string[] = [];
   let genIdCount = 0;
   let afterKeyword = false;
