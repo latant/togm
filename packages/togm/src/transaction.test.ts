@@ -14,19 +14,19 @@ describe("transaction tests", () => {
   });
 
   it("should get current transaction correctly", async () => {
-    await expectException(neo.getTransaction);
-    await neo.readTransaction(driver, async (t1) => {
-      expect(neo.getTransaction()).toBe(t1);
-      await neo.writeTransaction(driver, async (t2) => {
-        expect(neo.getTransaction()).toBe(t2);
+    await expectException(neo.getTx);
+    await neo.readTx(driver, async (t1) => {
+      expect(neo.getTx()).toBe(t1);
+      await neo.writeTx(driver, async (t2) => {
+        expect(neo.getTx()).toBe(t2);
       });
-      expect(neo.getTransaction()).toBe(t1);
+      expect(neo.getTx()).toBe(t1);
     });
-    await expectException(neo.getTransaction);
+    await expectException(neo.getTx);
   });
 
   it("should run query in transaction", async () => {
-    await neo.writeTransaction(driver, async () => {
+    await neo.writeTx(driver, async () => {
       const result = await neo.runQuery("CREATE (n:User) RETURN n");
       expect(result.records.length).toBe(1);
     });

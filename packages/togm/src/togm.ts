@@ -32,12 +32,12 @@ export const neo = {
    * Runs a block inside a transaction that only reads data.
    * The transaction and the session are automatically committed and closed after the block runs.
    */
-  readTransaction: readTransaction,
+  readTx: readTransaction,
   /**
    * Runs a block inside a transaction that can read and write data.
    * The transaction and the session are automatically committed and closed after the block runs.
    */
-  writeTransaction: writeTransaction,
+  writeTx: writeTransaction,
   /**
    * Runs commands in a transaction.
    * Commands can be: creation/update/deletion of node/relationship.
@@ -50,7 +50,7 @@ export const neo = {
    */
   runSession: runSession,
   /** Returns the current transaction. */
-  getTransaction: getTransaction,
+  getTx: getTransaction,
   /** Runs a cypher query in a transaction. */
   runQuery: runQuery,
 };
@@ -65,15 +65,15 @@ export const cyp = {
    * Creates a keyword token to be used as a cypher node.
    * Exactly one space is preserved before and after every keyword token.
    */
-  keyword: keyword,
+  kw: keyword,
   /**
    * Creates an identifier token to be used as a cypher node.
    * Identifiers created this way are always escaped.
    */
-  identifier: identifier,
+  id: identifier,
   /**
    * Creates a parameter token to be used as a cypher node.
    * The name of the parameter can be automatically generated.
    */
-  parameter: parameter,
+  param: parameter,
 };

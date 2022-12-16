@@ -10,12 +10,12 @@ describe("test type-safe graph selections", () => {
 
   it("should include multiple nodes one hop away from the root", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, async () => {
+    await neo.writeTx(driver, async () => {
       await loadMoviesExample();
     });
     const selection = graph.Movie.select({ actors: {} });
-    const findResult = await neo.readTransaction(driver, () => selection.find({}));
-    const findOneResult = await neo.readTransaction(driver, () => selection.findOne({}));
+    const findResult = await neo.readTx(driver, () => selection.find({}));
+    const findOneResult = await neo.readTx(driver, () => selection.findOne({}));
     const type = z.strictObject({
       $id: z.number(),
       title: z.string(),
@@ -37,12 +37,12 @@ describe("test type-safe graph selections", () => {
 
   it("should include multiple nodes two hop away from the root", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, async () => {
+    await neo.writeTx(driver, async () => {
       await loadMoviesExample();
     });
     const selection = graph.Movie.select({ actors: { moviesActedIn: {}, followers: {} } });
-    const findResult = await neo.readTransaction(driver, () => selection.find({}));
-    const findOneResult = await neo.readTransaction(driver, () => selection.findOne({}));
+    const findResult = await neo.readTx(driver, () => selection.find({}));
+    const findOneResult = await neo.readTx(driver, () => selection.findOne({}));
     const type = z.strictObject({
       $id: z.number(),
       title: z.string(),
@@ -83,12 +83,12 @@ describe("test type-safe graph selections", () => {
 
   it("should include single nodes one hop away from the root", async () => {
     const graph = northwindGraph();
-    await neo.writeTransaction(driver, async () => {
+    await neo.writeTx(driver, async () => {
       await loadNorthwindExample();
     });
     const selection = graph.Product.select({ category: {} });
-    const findResult = await neo.readTransaction(driver, () => selection.find({}));
-    const findOneResult = await neo.readTransaction(driver, () => selection.findOne({}));
+    const findResult = await neo.readTx(driver, () => selection.find({}));
+    const findOneResult = await neo.readTx(driver, () => selection.findOne({}));
     const type = z.strictObject({
       $id: z.number(),
       unitPrice: z.number(),
@@ -121,17 +121,17 @@ describe("test type-safe graph selections", () => {
 
   it("should use match provider for selection correctly", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, loadMoviesExample);
-    const foundMovies = await neo.readTransaction(driver, () => graph.Movie.select({}).find({}));
-    const foundMovie = await neo.readTransaction(driver, () => graph.Movie.select({}).findOne({}));
-    const matchedMovies = await neo.readTransaction(driver, () =>
+    await neo.writeTx(driver, loadMoviesExample);
+    const foundMovies = await neo.readTx(driver, () => graph.Movie.select({}).find({}));
+    const foundMovie = await neo.readTx(driver, () => graph.Movie.select({}).findOne({}));
+    const matchedMovies = await neo.readTx(driver, () =>
       graph.Movie.select({}).match({
         cypher(n) {
           return [MATCH, "(", n, ":Movie)"];
         },
       })
     );
-    const matchedMovie = await neo.readTransaction(driver, () =>
+    const matchedMovie = await neo.readTx(driver, () =>
       graph.Movie.select({}).matchOne({
         cypher(n) {
           return [MATCH, "(", n, ":Movie)"];
@@ -144,8 +144,8 @@ describe("test type-safe graph selections", () => {
 
   it("should generate where clause in the cypher of a selection using a reference condition", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, loadMoviesExample);
-    const movie = await neo.readTransaction(driver, () =>
+    await neo.writeTx(driver, loadMoviesExample);
+    const movie = await neo.readTx(driver, () =>
       graph.Movie.select({ actors: { $where: { roles: { contains: "Racer X" } } } }).findOne({
         title: { "=": "Speed Racer" },
       })

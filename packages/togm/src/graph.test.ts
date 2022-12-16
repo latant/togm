@@ -95,8 +95,8 @@ describe("definition tests", () => {
         })
       );
     }
-    await neo.writeTransaction(driver, () => neo.runCommands(creations));
-    const nodes = await neo.readTransaction(driver, () => graph.Node.select({}).find({}));
+    await neo.writeTx(driver, () => neo.runCommands(creations));
+    const nodes = await neo.readTx(driver, () => graph.Node.select({}).find({}));
     expect(nodes.length).toBe(10);
     expectValid(
       nodes,
@@ -131,8 +131,8 @@ describe("definition tests", () => {
         })
       );
     }
-    await neo.writeTransaction(driver, () => neo.runCommands(creations));
-    const nodes = await neo.readTransaction(driver, () => graph.Node.select({}).find({}));
+    await neo.writeTx(driver, () => neo.runCommands(creations));
+    const nodes = await neo.readTx(driver, () => graph.Node.select({}).find({}));
     expect(nodes.length).toBe(10);
     expectValid(
       nodes,
@@ -156,14 +156,14 @@ describe("definition tests", () => {
       }),
       HAS_PHONE: ogm.relationship({}),
     });
-    await neo.writeTransaction(driver, async () => {
+    await neo.writeTx(driver, async () => {
       const u0 = graph.User.create({});
       const u1 = graph.User.create({});
       const p = graph.Phone.create({ value: "+36702555555" });
       const r = graph.HAS_PHONE.create(u0, p, {});
       await neo.runCommands([u0, u1, p, r]);
     });
-    const nodes = await neo.readTransaction(driver, () =>
+    const nodes = await neo.readTx(driver, () =>
       graph.User.select({ phone: {} }).find({})
     );
     expect(nodes.length).toBe(2);
@@ -186,13 +186,13 @@ describe("definition tests", () => {
 
   it("should correctly update node with type-safe wrappers", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, () => loadMoviesExample());
-    const movie = await neo.readTransaction(driver, () =>
+    await neo.writeTx(driver, () => loadMoviesExample());
+    const movie = await neo.readTx(driver, () =>
       graph.Movie.select({}).findOne({
         title: { "=": "Something's Gotta Give" },
       })
     );
-    await neo.writeTransaction(driver, () =>
+    await neo.writeTx(driver, () =>
       neo.runCommands([
         graph.Movie.update(movie!.$id, {
           tagline: "awesome tagline",
@@ -200,7 +200,7 @@ describe("definition tests", () => {
         }),
       ])
     );
-    const updatedMovie = await neo.readTransaction(driver, () =>
+    const updatedMovie = await neo.readTx(driver, () =>
       graph.Movie.select({}).findOne({
         title: { "=": "Something" },
       })
@@ -212,21 +212,21 @@ describe("definition tests", () => {
 
   it("should correctly update relationship with type-safe wrappers", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, () => loadMoviesExample());
-    const person = await neo.readTransaction(driver, () =>
+    await neo.writeTx(driver, () => loadMoviesExample());
+    const person = await neo.readTx(driver, () =>
       graph.Person.select({ moviesActedIn: {} }).findOne({
         name: { "=": "Keanu Reeves" },
       })
     );
     const relId = person!.moviesActedIn.find((m) => m.roles.includes("Julian Mercer"))!.$rid;
-    await neo.writeTransaction(driver, () =>
+    await neo.writeTx(driver, () =>
       neo.runCommands([
         graph.ACTED_IN.update(relId, {
           roles: ["Neo", "Julian Mercer"],
         }),
       ])
     );
-    const movie = await neo.readTransaction(driver, () =>
+    const movie = await neo.readTx(driver, () =>
       graph.Movie.select({ actors: {} }).findOne({
         title: { "=": "Something's Gotta Give" },
       })

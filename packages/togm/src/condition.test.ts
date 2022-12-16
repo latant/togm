@@ -9,8 +9,8 @@ describe("condition tests", () => {
 
   it("should filter correctly by equaling a property", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, () => loadMoviesExample());
-    const result = await neo.readTransaction(driver, () =>
+    await neo.writeTx(driver, () => loadMoviesExample());
+    const result = await neo.readTx(driver, () =>
       graph.Movie.select({}).find({
         released: { "=": 2000 },
       })
@@ -23,9 +23,9 @@ describe("condition tests", () => {
 
   it("should find node by id", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, () => loadMoviesExample());
-    const movie = await neo.readTransaction(driver, () => graph.Movie.select({}).findOne({}));
-    const foundMovies = await neo.readTransaction(driver, () =>
+    await neo.writeTx(driver, () => loadMoviesExample());
+    const movie = await neo.readTx(driver, () => graph.Movie.select({}).findOne({}));
+    const foundMovies = await neo.readTx(driver, () =>
       graph.Movie.select({}).find({ $id: movie!.$id })
     );
     expect(foundMovies).toEqual([movie]);
@@ -33,11 +33,9 @@ describe("condition tests", () => {
 
   it("should find node by ids", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, () => loadMoviesExample());
-    const [first, second] = await neo.readTransaction(driver, () =>
-      graph.Movie.select({}).find({})
-    );
-    const foundMovies = await neo.readTransaction(driver, () =>
+    await neo.writeTx(driver, () => loadMoviesExample());
+    const [first, second] = await neo.readTx(driver, () => graph.Movie.select({}).find({}));
+    const foundMovies = await neo.readTx(driver, () =>
       graph.Movie.select({}).find({ $id: [first.$id, second.$id] })
     );
     expect(foundMovies).toEqual([first, second]);
@@ -45,12 +43,12 @@ describe("condition tests", () => {
 
   it("should find nodes that satisfy all conditions", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, () => loadMoviesExample());
-    const movies99 = await neo.readTransaction(driver, () =>
+    await neo.writeTx(driver, () => loadMoviesExample());
+    const movies99 = await neo.readTx(driver, () =>
       graph.Movie.select({}).find({ released: { "=": 1999 } })
     );
     expect(movies99.length).toBe(4);
-    const movies99a = await neo.readTransaction(driver, () =>
+    const movies99a = await neo.readTx(driver, () =>
       graph.Movie.select({}).find({
         released: { "=": 1999 },
         title: { contains: "a" },
@@ -62,8 +60,8 @@ describe("condition tests", () => {
 
   it("should find all nodes that satisfy one of the conditions in a field's $any clause", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, () => loadMoviesExample());
-    const movies = await neo.readTransaction(driver, () =>
+    await neo.writeTx(driver, () => loadMoviesExample());
+    const movies = await neo.readTx(driver, () =>
       graph.Movie.select({}).find({
         released: {
           $any: {
@@ -86,8 +84,8 @@ describe("condition tests", () => {
 
   it("should find all nodes that satisfy one of the conditions in a regular $any clause", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, () => loadMoviesExample());
-    const movies = await neo.readTransaction(driver, () =>
+    await neo.writeTx(driver, () => loadMoviesExample());
+    const movies = await neo.readTx(driver, () =>
       graph.Movie.select({}).find({
         $any: {
           released: { ">": 1999 },
@@ -111,8 +109,8 @@ describe("condition tests", () => {
 
   it("should find all nodes that does not satisfy the conditions in a field's $not clause", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, () => loadMoviesExample());
-    const movies = await neo.readTransaction(driver, () =>
+    await neo.writeTx(driver, () => loadMoviesExample());
+    const movies = await neo.readTx(driver, () =>
       graph.Movie.select({}).find({
         released: {
           $not: {
@@ -135,8 +133,8 @@ describe("condition tests", () => {
 
   it("should find all nodes that does not satisfy the condition in a regular $not clause", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, () => loadMoviesExample());
-    const movies = await neo.readTransaction(driver, () =>
+    await neo.writeTx(driver, () => loadMoviesExample());
+    const movies = await neo.readTx(driver, () =>
       graph.Movie.select({}).find({
         $not: {
           released: { $not: { ">": 1999 } },
@@ -160,14 +158,14 @@ describe("condition tests", () => {
 
   it("should properly use 'is null' and 'is not null' conditions", async () => {
     const graph = moviesGraph();
-    await neo.writeTransaction(driver, () => loadMoviesExample());
-    const allMovies = await neo.readTransaction(driver, () => graph.Movie.select({}).find({}));
-    const moviesWithTagline = await neo.readTransaction(driver, () =>
+    await neo.writeTx(driver, () => loadMoviesExample());
+    const allMovies = await neo.readTx(driver, () => graph.Movie.select({}).find({}));
+    const moviesWithTagline = await neo.readTx(driver, () =>
       graph.Movie.select({}).find({
         tagline: { null: false },
       })
     );
-    const moviesWithoutTagline = await neo.readTransaction(driver, () =>
+    const moviesWithoutTagline = await neo.readTx(driver, () =>
       graph.Movie.select({}).find({
         tagline: { null: true },
       })
