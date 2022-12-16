@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { loadMoviesExample, moviesGraph } from "./test/movies";
 import { expectValid, useTestDatabase } from "./test/testUtils";
-import { neo, ogm } from "./togm";
+import { neo } from "./togm";
 
 describe("condition tests", () => {
   const driver = useTestDatabase();
@@ -11,7 +11,7 @@ describe("condition tests", () => {
     const graph = moviesGraph();
     await neo.writeTransaction(driver, () => loadMoviesExample());
     const result = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).find({
+      graph.Movie.select({}).find({
         released: { "=": 2000 },
       })
     );
@@ -24,9 +24,9 @@ describe("condition tests", () => {
   it("should find node by id", async () => {
     const graph = moviesGraph();
     await neo.writeTransaction(driver, () => loadMoviesExample());
-    const movie = await neo.readTransaction(driver, () => graph.select.Movie({}).findOne({}));
+    const movie = await neo.readTransaction(driver, () => graph.Movie.select({}).findOne({}));
     const foundMovies = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).find({ $id: movie!.$id })
+      graph.Movie.select({}).find({ $id: movie!.$id })
     );
     expect(foundMovies).toEqual([movie]);
   });
@@ -35,10 +35,10 @@ describe("condition tests", () => {
     const graph = moviesGraph();
     await neo.writeTransaction(driver, () => loadMoviesExample());
     const [first, second] = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).find({})
+      graph.Movie.select({}).find({})
     );
     const foundMovies = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).find({ $id: [first.$id, second.$id] })
+      graph.Movie.select({}).find({ $id: [first.$id, second.$id] })
     );
     expect(foundMovies).toEqual([first, second]);
   });
@@ -47,11 +47,11 @@ describe("condition tests", () => {
     const graph = moviesGraph();
     await neo.writeTransaction(driver, () => loadMoviesExample());
     const movies99 = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).find({ released: { "=": 1999 } })
+      graph.Movie.select({}).find({ released: { "=": 1999 } })
     );
     expect(movies99.length).toBe(4);
     const movies99a = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).find({
+      graph.Movie.select({}).find({
         released: { "=": 1999 },
         title: { contains: "a" },
       })
@@ -64,7 +64,7 @@ describe("condition tests", () => {
     const graph = moviesGraph();
     await neo.writeTransaction(driver, () => loadMoviesExample());
     const movies = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).find({
+      graph.Movie.select({}).find({
         released: {
           $any: {
             "<": 1992,
@@ -88,7 +88,7 @@ describe("condition tests", () => {
     const graph = moviesGraph();
     await neo.writeTransaction(driver, () => loadMoviesExample());
     const movies = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).find({
+      graph.Movie.select({}).find({
         $any: {
           released: { ">": 1999 },
           title: { contains: "x" },
@@ -113,7 +113,7 @@ describe("condition tests", () => {
     const graph = moviesGraph();
     await neo.writeTransaction(driver, () => loadMoviesExample());
     const movies = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).find({
+      graph.Movie.select({}).find({
         released: {
           $not: {
             ">=": 1992,
@@ -137,7 +137,7 @@ describe("condition tests", () => {
     const graph = moviesGraph();
     await neo.writeTransaction(driver, () => loadMoviesExample());
     const movies = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).find({
+      graph.Movie.select({}).find({
         $not: {
           released: { $not: { ">": 1999 } },
           title: { $not: { contains: "x" } },
@@ -161,14 +161,14 @@ describe("condition tests", () => {
   it("should properly use 'is null' and 'is not null' conditions", async () => {
     const graph = moviesGraph();
     await neo.writeTransaction(driver, () => loadMoviesExample());
-    const allMovies = await neo.readTransaction(driver, () => graph.select.Movie({}).find({}));
+    const allMovies = await neo.readTransaction(driver, () => graph.Movie.select({}).find({}));
     const moviesWithTagline = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).find({
+      graph.Movie.select({}).find({
         tagline: { null: false },
       })
     );
     const moviesWithoutTagline = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).find({
+      graph.Movie.select({}).find({
         tagline: { null: true },
       })
     );

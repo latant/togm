@@ -18,16 +18,27 @@ import {
 import { CreateNode, CreateRelationship, Id, UpdateNode, UpdateRelationship } from "./update";
 import { DeepStrict } from "./util";
 
+type NodeModel<E extends Entities = Entities, N extends NodeDefinition = NodeDefinition> = N & {
+  select: SelectNodeFunction<E, N>;
+  create: CreateNodeFunction<E, N>;
+  update: UpdateNodeFunction<N["properties"]>;
+};
+
+type RelationshipModel<R extends RelationshipDefinition = RelationshipDefinition> = R & {
+  create: CreateRelationshipFunction<R>;
+  update: UpdateRelationshipFunction<R["properties"]>;
+};
+
+type GraphModel<G extends GraphDefinition = GraphDefinition> = {
+  [L in keyof G["nodes"]]: NodeModel<G, G["nodes"][L]>;
+} & { [T in keyof G["relationships"]]: RelationshipModel<G["relationships"][T]> };
+
 type SelectNodeFunction<
   E extends Entities = Entities,
   N extends NodeDefinition = NodeDefinition
 > = <M extends NodeSelectionDefinitionMembers<E, N>>(
   members: M & DeepStrict<NodeSelectionDefinitionMembers<E, N>, M>
 ) => NodeSelection<NodeSelectionDefinition<E, N, M>>;
-
-type SelectNodeFunctions<E extends Entities = Entities> = {
-  [L in keyof E["nodes"]]: SelectNodeFunction<E, E["nodes"][L]>;
-};
 
 type CreateNodeFunction<
   E extends Entities = Entities,
@@ -43,12 +54,6 @@ type CreateRelationshipFunction<R extends RelationshipDefinition = RelationshipD
   props: PropRecord<R["properties"]>
 ) => CreateRelationship;
 
-type CreateEntityFunctions<E extends Entities = Entities> = {
-  [L in keyof E["nodes"]]: CreateNodeFunction<E, E["nodes"][L]>;
-} & {
-  [T in keyof E["relationships"]]: CreateRelationshipFunction<E["relationships"][T]>;
-};
-
 type UpdateNodeFunction<P extends Properties = Properties> = (
   id: Id,
   props: Partial<PropRecord<P>>
@@ -59,102 +64,66 @@ type UpdateRelationshipFunction<P extends Properties = Properties> = (
   props: Partial<PropRecord<P>>
 ) => UpdateRelationship;
 
-type UpdateEntityFunctions<E extends Entities = Entities> = {
-  [L in keyof E["nodes"]]: UpdateNodeFunction<E["nodes"][L]["properties"]>;
-} & {
-  [T in keyof E["relationships"]]: UpdateRelationshipFunction<E["relationships"][T]["properties"]>;
+export const createGraph = <M extends GraphMembers & ValidMembers<M>>(members: M) => {
+  return createGraphModel(defineGraph(members));
 };
 
-export type Graph<G extends GraphDefinition = GraphDefinition> = {
-  definition: G;
-  select: SelectNodeFunctions<G>;
-  create: CreateEntityFunctions<G>;
-  update: UpdateEntityFunctions<G>;
-};
-
-export const createGraph = <M extends GraphMembers & ValidMembers<M>>(members: M) =>
-  createGraphOfDefinition(defineGraph(members));
-
-const createNodeFunctions = (graph: GraphDefinition) => {
-  const result = {} as Record<string, CreateNodeFunction>;
-  for (const l in graph.nodes) {
-    const node = graph.nodes[l];
-    result[l] = (props: unknown, opts?: { additionalLabels?: string[] }): CreateNode => {
+const createNodeModel = (graph: GraphDefinition, label: string): NodeModel => {
+  const node = graph.nodes[label];
+  return {
+    ...node,
+    select(members: unknown) {
+      return createNodeSelection(graph, label, node, graph.selectionTypes[label].parse(members));
+    },
+    create(props: unknown, opts?: { additionalLabels?: string[] }) {
       const labels = new Set<string>(opts?.additionalLabels ?? []);
-      labels.add(l);
+      labels.add(label);
       return {
         type: "createNode",
         labels: [...labels],
         properties: node.propertiesZodType.parse(props),
       };
-    };
-  }
-  return result;
-};
-
-const createRelationshipFunctions = (graph: GraphDefinition) => {
-  const result = {} as Record<string, CreateRelationshipFunction>;
-  for (const t in graph.relationships) {
-    const relationship = graph.relationships[t];
-    result[t] = (start: Id, end: Id, props: unknown): CreateRelationship => {
-      return {
-        type: "createRelationship",
-        relationshipType: t,
-        start: start,
-        end: end,
-        properties: relationship.propertiesZodType.strict().parse(props),
-      };
-    };
-  }
-  return result;
-};
-
-const updateNodeFunctions = (graph: GraphDefinition) => {
-  const result = {} as Record<string, UpdateNodeFunction>;
-  for (const l in graph.nodes) {
-    const node = graph.nodes[l];
-    result[l] = (id: Id, props: unknown): UpdateNode => {
+    },
+    update(id: Id, props: unknown) {
       return {
         type: "updateNode",
         node: id,
         properties: node.propertiesZodType.partial().parse(props),
       };
-    };
-  }
-  return result;
+    },
+  };
 };
 
-const updateRelationshipFunctions = (graph: GraphDefinition) => {
-  const result = {} as Record<string, UpdateRelationshipFunction>;
-  for (const t in graph.relationships) {
-    const relationship = graph.relationships[t];
-    result[t] = (id: Id, props: unknown): UpdateRelationship => {
+const createRelationshipModel = (graph: GraphDefinition, type: string): RelationshipModel => {
+  const relationship = graph.relationships[type];
+  return {
+    ...relationship,
+    create(start: Id, end: Id, props: unknown) {
+      return {
+        type: "createRelationship",
+        relationshipType: type,
+        start: start,
+        end: end,
+        properties: relationship.propertiesZodType.strict().parse(props),
+      };
+    },
+    update(id: Id, props: unknown) {
       return {
         type: "updateRelationship",
         relationship: id,
         properties: relationship.propertiesZodType.strict().partial().parse(props),
       };
-    };
-  }
-  return result;
+    },
+  };
 };
 
-const selectNodeFunctions = (graph: GraphDefinition) => {
-  const result = {} as Record<string, SelectNodeFunction>;
-  for (const l in graph.nodes) {
-    const node = graph.nodes[l];
-    result[l] = (members: unknown) => {
-      return createNodeSelection(graph, l, node, graph.selectionTypes[l].parse(members));
-    };
-  }
-  return result;
-};
-
-export const createGraphOfDefinition = <G extends GraphDefinition>(graph: G) => {
+export const createGraphModel = <G extends GraphDefinition>(graph: G) => {
   return {
-    definition: graph,
-    select: selectNodeFunctions(graph),
-    create: { ...createNodeFunctions(graph), ...createRelationshipFunctions(graph) },
-    update: { ...updateNodeFunctions(graph), ...updateRelationshipFunctions(graph) },
-  } as Graph<G>;
+    ...Object.fromEntries(
+      Object.keys(graph.nodes).map((label) => [label, createNodeModel(graph, label)])
+    ),
+    ...Object.fromEntries(
+      Object.keys(graph.relationships).map((type) => [type, createRelationshipModel(graph, type)])
+    ),
+  } as GraphModel<G>;
 };

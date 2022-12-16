@@ -37,3 +37,4 @@ common/autoinstallers/*/.npmrc
 */*/junit.xml
 */*/lint
 */*/cov
+packages/togm/src/test/experiment.ts

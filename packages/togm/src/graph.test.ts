@@ -82,7 +82,7 @@ describe("definition tests", () => {
     const creations: CreateNode[] = [];
     for (let i = 0; i < 10; i++) {
       creations.push(
-        graph.create.Node({
+        graph.Node.create({
           stringField: "",
           numberField: 0,
           booleanField: true,
@@ -96,7 +96,7 @@ describe("definition tests", () => {
       );
     }
     await neo.writeTransaction(driver, () => neo.runCommands(creations));
-    const nodes = await neo.readTransaction(driver, () => graph.select.Node({}).find({}));
+    const nodes = await neo.readTransaction(driver, () => graph.Node.select({}).find({}));
     expect(nodes.length).toBe(10);
     expectValid(
       nodes,
@@ -126,13 +126,13 @@ describe("definition tests", () => {
     const creations: CreateNode[] = [];
     for (let i = 0; i < 10; i++) {
       creations.push(
-        graph.create.Node({
+        graph.Node.create({
           numberField: BigInt(0) as any,
         })
       );
     }
     await neo.writeTransaction(driver, () => neo.runCommands(creations));
-    const nodes = await neo.readTransaction(driver, () => graph.select.Node({}).find({}));
+    const nodes = await neo.readTransaction(driver, () => graph.Node.select({}).find({}));
     expect(nodes.length).toBe(10);
     expectValid(
       nodes,
@@ -157,14 +157,14 @@ describe("definition tests", () => {
       HAS_PHONE: ogm.relationship({}),
     });
     await neo.writeTransaction(driver, async () => {
-      const u0 = graph.create.User({});
-      const u1 = graph.create.User({});
-      const p = graph.create.Phone({ value: "+36702555555" });
-      const r = graph.create.HAS_PHONE(u0, p, {});
+      const u0 = graph.User.create({});
+      const u1 = graph.User.create({});
+      const p = graph.Phone.create({ value: "+36702555555" });
+      const r = graph.HAS_PHONE.create(u0, p, {});
       await neo.runCommands([u0, u1, p, r]);
     });
     const nodes = await neo.readTransaction(driver, () =>
-      graph.select.User({ phone: {} }).find({})
+      graph.User.select({ phone: {} }).find({})
     );
     expect(nodes.length).toBe(2);
     expectValid(
@@ -188,20 +188,20 @@ describe("definition tests", () => {
     const graph = moviesGraph();
     await neo.writeTransaction(driver, () => loadMoviesExample());
     const movie = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).findOne({
+      graph.Movie.select({}).findOne({
         title: { "=": "Something's Gotta Give" },
       })
     );
     await neo.writeTransaction(driver, () =>
       neo.runCommands([
-        graph.update.Movie(movie!.$id, {
+        graph.Movie.update(movie!.$id, {
           tagline: "awesome tagline",
           title: "Something",
         }),
       ])
     );
     const updatedMovie = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).findOne({
+      graph.Movie.select({}).findOne({
         title: { "=": "Something" },
       })
     );
@@ -214,20 +214,20 @@ describe("definition tests", () => {
     const graph = moviesGraph();
     await neo.writeTransaction(driver, () => loadMoviesExample());
     const person = await neo.readTransaction(driver, () =>
-      graph.select.Person({ moviesActedIn: {} }).findOne({
+      graph.Person.select({ moviesActedIn: {} }).findOne({
         name: { "=": "Keanu Reeves" },
       })
     );
     const relId = person!.moviesActedIn.find((m) => m.roles.includes("Julian Mercer"))!.$rid;
     await neo.writeTransaction(driver, () =>
       neo.runCommands([
-        graph.update.ACTED_IN(relId, {
+        graph.ACTED_IN.update(relId, {
           roles: ["Neo", "Julian Mercer"],
         }),
       ])
     );
     const movie = await neo.readTransaction(driver, () =>
-      graph.select.Movie({ actors: {} }).findOne({
+      graph.Movie.select({ actors: {} }).findOne({
         title: { "=": "Something's Gotta Give" },
       })
     );

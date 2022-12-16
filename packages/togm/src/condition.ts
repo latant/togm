@@ -126,7 +126,7 @@ export const propertyConditionTypes = {
   date: zNumericCondition("date"),
   localDateTime: zNumericCondition("localDateTime"),
   dateTime: zNumericCondition("dateTime"),
-  point: z.object({ "=": z.boolean() }),
+  point: z.object({}),
 };
 
 type Op = "any" | "all";

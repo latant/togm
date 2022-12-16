@@ -13,7 +13,7 @@ describe("test type-safe graph selections", () => {
     await neo.writeTransaction(driver, async () => {
       await loadMoviesExample();
     });
-    const selection = graph.select.Movie({ actors: {} });
+    const selection = graph.Movie.select({ actors: {} });
     const findResult = await neo.readTransaction(driver, () => selection.find({}));
     const findOneResult = await neo.readTransaction(driver, () => selection.findOne({}));
     const type = z.strictObject({
@@ -40,7 +40,7 @@ describe("test type-safe graph selections", () => {
     await neo.writeTransaction(driver, async () => {
       await loadMoviesExample();
     });
-    const selection = graph.select.Movie({ actors: { moviesActedIn: {}, followers: {} } });
+    const selection = graph.Movie.select({ actors: { moviesActedIn: {}, followers: {} } });
     const findResult = await neo.readTransaction(driver, () => selection.find({}));
     const findOneResult = await neo.readTransaction(driver, () => selection.findOne({}));
     const type = z.strictObject({
@@ -86,7 +86,7 @@ describe("test type-safe graph selections", () => {
     await neo.writeTransaction(driver, async () => {
       await loadNorthwindExample();
     });
-    const selection = graph.select.Product({ category: {} });
+    const selection = graph.Product.select({ category: {} });
     const findResult = await neo.readTransaction(driver, () => selection.find({}));
     const findOneResult = await neo.readTransaction(driver, () => selection.findOne({}));
     const type = z.strictObject({
@@ -109,48 +109,30 @@ describe("test type-safe graph selections", () => {
     expectValid(findOneResult, type);
   });
 
-  it("should throw an exception when an entity reference is invalid", async () => {
-    const graph = northwindGraph();
-    graph.definition.nodes.Product.references.category.label = "InvalidLabel" as any;
-    await expectException(() => graph.select.Product({ category: {} }));
-  });
-
-  it("should throw an exception when a relationship type in a reference is a label", async () => {
-    const graph = northwindGraph();
-    graph.definition.nodes.Product.references.category.relationshipType = "Supplier" as any;
-    await expectException(() => graph.select.Product({ category: {} }));
-  });
-
-  it("should throw an exception when a label in a reference is a relationship type", async () => {
-    const graph = northwindGraph();
-    graph.definition.nodes.Product.references.category.label = "SUPPLIES" as any;
-    await expectException(() => graph.select.Product({ category: {} }));
-  });
-
   it("should throw error when the selection field is a property", async () => {
     const graph = moviesGraph();
-    await expectException(() => graph.select.Movie({ actors: {}, title: {} } as any));
+    await expectException(() => graph.Movie.select({ actors: {}, title: {} } as any));
   });
 
   it("should throw an exception when a selection field is not a member of the entity", async () => {
     const graph = northwindGraph();
-    await expectException(() => graph.select.Product({ description: {} } as any));
+    await expectException(() => graph.Product.select({ description: {} } as any));
   });
 
   it("should use match provider for selection correctly", async () => {
     const graph = moviesGraph();
     await neo.writeTransaction(driver, loadMoviesExample);
-    const foundMovies = await neo.readTransaction(driver, () => graph.select.Movie({}).find({}));
-    const foundMovie = await neo.readTransaction(driver, () => graph.select.Movie({}).findOne({}));
+    const foundMovies = await neo.readTransaction(driver, () => graph.Movie.select({}).find({}));
+    const foundMovie = await neo.readTransaction(driver, () => graph.Movie.select({}).findOne({}));
     const matchedMovies = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).match({
+      graph.Movie.select({}).match({
         cypher(n) {
           return [MATCH, "(", n, ":Movie)"];
         },
       })
     );
     const matchedMovie = await neo.readTransaction(driver, () =>
-      graph.select.Movie({}).matchOne({
+      graph.Movie.select({}).matchOne({
         cypher(n) {
           return [MATCH, "(", n, ":Movie)"];
         },
@@ -164,9 +146,9 @@ describe("test type-safe graph selections", () => {
     const graph = moviesGraph();
     await neo.writeTransaction(driver, loadMoviesExample);
     const movie = await neo.readTransaction(driver, () =>
-      graph.select
-        .Movie({ actors: { $where: { roles: { contains: "Racer X" } } } })
-        .findOne({ title: { "=": "Speed Racer" } })
+      graph.Movie.select({ actors: { $where: { roles: { contains: "Racer X" } } } }).findOne({
+        title: { "=": "Speed Racer" },
+      })
     );
     expectValid(
       movie,

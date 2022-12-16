@@ -73,9 +73,11 @@ export type DeepStrict<T, U> = Strict<T, U> & {
 // f({ b: {}, c: { a: { c: {} }, foo: "bar" }, foo: "bar" });
 // f({ c: {} });
 
-export type SameKeys<A, B> = {
-  [K in keyof A]: K extends keyof B ? B[K] : never;
-} & B;
+export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
+  k: infer I
+) => void
+  ? I
+  : never;
 
 export type PickValuesExtend<T, V> = {
   [K in keyof T as T[K] extends V ? K : never]: T[K] extends V ? T[K] : never;
