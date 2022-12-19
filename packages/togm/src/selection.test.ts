@@ -1,20 +1,19 @@
 import { z } from "zod";
-import { loadMoviesExample, moviesGraph } from "./test/movies";
-import { loadNorthwindExample, northwindGraph } from "./test/northwind";
+import { loadMoviesExample, moviesDAO } from "./test/movies";
+import { loadNorthwindExample, northwindDAO } from "./test/northwind";
 import { expectException, expectValid, useTestDatabase } from "./test/testUtils";
-import { neo } from "./togm";
 
 describe("test type-safe graph selections", () => {
-  const driver = useTestDatabase();
+  const client = useTestDatabase();
 
   it("should include multiple nodes one hop away from the root", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, async () => {
+    const dao = moviesDAO();
+    await client.writeTx(async () => {
       await loadMoviesExample();
     });
-    const selection = graph.Movie.select({ actors: {} });
-    const findResult = await neo.readTx(driver, () => selection.findAll({}));
-    const findOneResult = await neo.readTx(driver, () => selection.findOne({}));
+    const selection = dao.Movie.select({ actors: {} });
+    const findResult = await client.readTx(() => selection.findAll());
+    const findOneResult = await client.readTx(() => selection.findOne());
     const type = z.strictObject({
       $id: z.number(),
       title: z.string(),
@@ -35,13 +34,13 @@ describe("test type-safe graph selections", () => {
   });
 
   it("should include multiple nodes two hop away from the root", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, async () => {
+    const dao = moviesDAO();
+    await client.writeTx(async () => {
       await loadMoviesExample();
     });
-    const selection = graph.Movie.select({ actors: { moviesActedIn: {}, followers: {} } });
-    const findResult = await neo.readTx(driver, () => selection.findAll({}));
-    const findOneResult = await neo.readTx(driver, () => selection.findOne({}));
+    const selection = dao.Movie.select({ actors: { moviesActedIn: {}, followers: {} } });
+    const findResult = await client.readTx(() => selection.findAll());
+    const findOneResult = await client.readTx(() => selection.findOne());
     const type = z.strictObject({
       $id: z.number(),
       title: z.string(),
@@ -81,13 +80,13 @@ describe("test type-safe graph selections", () => {
   });
 
   it("should include single nodes one hop away from the root", async () => {
-    const graph = northwindGraph();
-    await neo.writeTx(driver, async () => {
+    const dao = northwindDAO();
+    await client.writeTx(async () => {
       await loadNorthwindExample();
     });
-    const selection = graph.Product.select({ category: {} });
-    const findResult = await neo.readTx(driver, () => selection.findAll({}));
-    const findOneResult = await neo.readTx(driver, () => selection.findOne({}));
+    const selection = dao.Product.select({ category: {} });
+    const findResult = await client.readTx(() => selection.findAll());
+    const findOneResult = await client.readTx(() => selection.findOne());
     const type = z.strictObject({
       $id: z.number(),
       unitPrice: z.number(),
@@ -109,20 +108,20 @@ describe("test type-safe graph selections", () => {
   });
 
   it("should throw error when the selection field is a property", async () => {
-    const graph = moviesGraph();
-    await expectException(() => graph.Movie.select({ actors: {}, title: {} } as any));
+    const dao = moviesDAO();
+    await expectException(() => dao.Movie.select({ actors: {}, title: {} } as any));
   });
 
   it("should throw an exception when a selection field is not a member of the entity", async () => {
-    const graph = northwindGraph();
-    await expectException(() => graph.Product.select({ description: {} } as any));
+    const dao = northwindDAO();
+    await expectException(() => dao.Product.select({ description: {} } as any));
   });
 
   it("should generate where clause in the cypher of a selection using a reference condition", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, loadMoviesExample);
-    const movie = await neo.readTx(driver, () =>
-      graph.Movie.select({ actors: { $where: { roles: { contains: "Racer X" } } } }).findOne({
+    const dao = moviesDAO();
+    await client.writeTx(() => loadMoviesExample());
+    const movie = await client.readTx(() =>
+      dao.Movie.select({ actors: { $where: { roles: { contains: "Racer X" } } } }).findOne({
         title: { "=": "Speed Racer" },
       })
     );

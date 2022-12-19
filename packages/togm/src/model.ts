@@ -1,12 +1,9 @@
 import {
-  defineGraph,
   Entities,
   GraphDefinition,
-  GraphMembers,
   NodeDefinition,
   Properties,
   RelationshipDefinition,
-  ValidMembers,
 } from "./definition";
 import { PropRecord } from "./property";
 import { createNodeQueries, NodeQueries } from "./query";
@@ -50,10 +47,6 @@ type UpdateRelationshipFunction<P extends Properties = Properties> = (
   id: Id,
   props: Partial<PropRecord<P>>
 ) => UpdateRelationship;
-
-export const createGraph = <M extends GraphMembers & ValidMembers<M>>(members: M) => {
-  return createGraphModel(defineGraph(members));
-};
 
 const createNodeModel = (graph: GraphDefinition, label: string): NodeModel => {
   const node = graph.nodes[label];

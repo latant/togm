@@ -4,8 +4,8 @@
   "author": "Antal Latinovits",
   "license": "MIT",
   "description": "Advanced, type-safe object-graph mapping for the Neo4j graph database",
-  "main": "dist/togm.js",
-  "types": "dist/togm.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": ["dist"],
   "keywords": ["graph", "database", "client", "schema", "object", "mapping", "query", "transaction"],
   "scripts": {

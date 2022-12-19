@@ -1,41 +1,44 @@
-import { neo, ogm } from "../togm";
-import { CreateNode } from "../update";
+import { ogm } from "..";
+import { CreateNode, runCommands } from "../update";
 
-export const northwindGraph = () =>
-  ogm.graph({
-    Product: ogm.node({
-      unitPrice: ogm.number(),
-      unitsInStock: ogm.number(),
-      reorderLevel: ogm.number(),
-      discontinued: ogm.boolean(),
-      quantityPerUnit: ogm.string(),
-      productName: ogm.string(),
-      unitsOnOrder: ogm.number(),
-      category: ogm.oneOut("PART_OF", "Category"),
-      suppliers: ogm.manyIn("SUPPLIES", "Supplier"),
-    }),
-    Category: ogm.node({
-      description: ogm.string(),
-      categoryName: ogm.string(),
-      products: ogm.manyIn("PART_OF", "Product"),
-    }),
-    Supplier: ogm.node({
-      country: ogm.string(),
-      contactTitle: ogm.string(),
-      address: ogm.string(),
-      phone: ogm.string(),
-      city: ogm.string(),
-      contactName: ogm.string(),
-      companyName: ogm.string(),
-      postalCode: ogm.stringOrNull(),
-      fax: ogm.stringOrNull(),
-      region: ogm.stringOrNull(),
-      homePage: ogm.stringOrNull(),
-      products: ogm.manyOut("SUPPLIES", "Product"),
-    }),
-    SUPPLIES: ogm.relationship({}),
-    PART_OF: ogm.relationship({}),
-  });
+export const northwindDAO = () => {
+  return ogm.dao(
+    ogm.graph({
+      Product: ogm.node({
+        unitPrice: ogm.number(),
+        unitsInStock: ogm.number(),
+        reorderLevel: ogm.number(),
+        discontinued: ogm.boolean(),
+        quantityPerUnit: ogm.string(),
+        productName: ogm.string(),
+        unitsOnOrder: ogm.number(),
+        category: ogm.oneOut("PART_OF", "Category"),
+        suppliers: ogm.manyIn("SUPPLIES", "Supplier"),
+      }),
+      Category: ogm.node({
+        description: ogm.string(),
+        categoryName: ogm.string(),
+        products: ogm.manyIn("PART_OF", "Product"),
+      }),
+      Supplier: ogm.node({
+        country: ogm.string(),
+        contactTitle: ogm.string(),
+        address: ogm.string(),
+        phone: ogm.string(),
+        city: ogm.string(),
+        contactName: ogm.string(),
+        companyName: ogm.string(),
+        postalCode: ogm.stringOrNull(),
+        fax: ogm.stringOrNull(),
+        region: ogm.stringOrNull(),
+        homePage: ogm.stringOrNull(),
+        products: ogm.manyOut("SUPPLIES", "Product"),
+      }),
+      SUPPLIES: ogm.relationship({}),
+      PART_OF: ogm.relationship({}),
+    })
+  );
+};
 
 export const loadNorthwindExample = async () => {
   const n0: CreateNode = {
@@ -1531,7 +1534,7 @@ export const loadNorthwindExample = async () => {
     },
   };
 
-  await neo.runCommands([
+  await runCommands([
     n0,
     n1,
     n2,

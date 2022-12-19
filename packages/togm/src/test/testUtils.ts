@@ -1,7 +1,6 @@
-import neo4j from "neo4j-driver";
 import { StartedNeo4jContainer } from "testcontainers";
 import { ZodType } from "zod";
-import { runSession } from "../transaction";
+import { Neo4jClient } from "../client";
 
 export const testGlobal: {
   neo4j: {
@@ -13,16 +12,21 @@ export const testGlobal: {
 } = global as any;
 
 export const useTestDatabase = () => {
-  const driver = neo4j.driver(
-    testGlobal.neo4j.boltUri,
-    neo4j.auth.basic(testGlobal.neo4j.username, testGlobal.neo4j.password)
-  );
+  const client = Neo4jClient.create({
+    url: testGlobal.neo4j.boltUri,
+    auth: {
+      scheme: "basic",
+      principal: testGlobal.neo4j.username,
+      credentials: testGlobal.neo4j.password,
+    },
+    clsNamespace: "testDatabase",
+  });
   beforeEach(async () => {
-    await runSession(driver, async (s) => {
+    await client.runSession(async (s) => {
       await s.run({ text: "MATCH (n) DETACH DELETE n" });
     });
   });
-  return driver;
+  return client;
 };
 
 export const expectException = async (run: () => any) => {

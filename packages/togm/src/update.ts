@@ -1,6 +1,17 @@
 import { Integer, Transaction } from "neo4j-driver";
-import { AS, CREATE, identifier, MATCH, cypherParameter, RETURN, SET, UNWIND, WHERE } from "./cypher";
-import { getTransaction, runQuery } from "./transaction";
+import { Neo4jClient } from "./client";
+import {
+  AS,
+  CREATE,
+  identifier,
+  MATCH,
+  cypherParameter,
+  RETURN,
+  SET,
+  UNWIND,
+  WHERE,
+  joinCypher,
+} from "./cypher";
 import { error, getValues } from "./util";
 
 export type Id = { id?: number } | number;
@@ -57,7 +68,7 @@ const filterCommands = <T extends Command["type"]>(commands: Command[], type: T)
 
 export const runCommands = async (
   commands: Command[],
-  transaction: Transaction = getTransaction()
+  transaction: Transaction = Neo4jClient.getTx()
 ) => {
   await createNodes(filterCommands(commands, "createNode"), transaction);
   await createRelationships(filterCommands(commands, "createRelationship"), transaction);
@@ -87,14 +98,13 @@ const createNodes = async (creations: Omit<CreateNode, "type">[], transaction: T
       "creations",
       crs.map((c) => c.properties || {})
     );
-    const result = await runQuery(
-      [
+    const result = await transaction.run(
+      joinCypher(
         [UNWIND, creationsParam, AS, "c"],
         [CREATE, "(n", (crs[0].labels || []).map((l) => [":", identifier(l)]), ")"],
         [SET, "n += c"],
-        [RETURN, "id(n)", AS, "id"],
-      ],
-      transaction
+        [RETURN, "id(n)", AS, "id"]
+      )
     );
     for (const i in result.records) {
       crs[i].id = (result.records[i].get("id") as Integer).toNumber();
@@ -122,16 +132,15 @@ const createRelationships = async (
         props: c.properties || {},
       }))
     );
-    const result = await runQuery(
-      [
+    const result = await transaction.run(
+      joinCypher(
         [UNWIND, creationsParam, AS, "c"],
         [MATCH, "(a)", WHERE, "id(a) = c.a"],
         [MATCH, "(b)", WHERE, "id(b) = c.b"],
         [CREATE, "(a)-[r:", identifier(crs[0].relationshipType), "]->(b)"],
         [SET, "r += c.props"],
-        [RETURN, "id(r)", AS, "id"],
-      ],
-      transaction
+        [RETURN, "id(r)", AS, "id"]
+      )
     );
     if (result.records.length !== crs.length) {
       error("Not every relationships could be created");
@@ -177,10 +186,7 @@ const updateRelationships = async (
   }
 };
 
-export const deleteNodes = async (
-  deletions: Omit<DeleteNode, "type">[],
-  transaction: Transaction
-) => {
+const deleteNodes = async (deletions: Omit<DeleteNode, "type">[], transaction: Transaction) => {
   if (!deletions.length) return;
   await transaction.run({
     text: "MATCH (n) WHERE id(n) IN $ids DETACH DELETE n",

@@ -50,7 +50,7 @@ export const IN = keyword("IN");
 export const IS = keyword("IS");
 export const OR = keyword("OR");
 
-export const joinCypher = (...root: CypherNode[]): Query => {
+export const joinCypher = (...root: CypherNode[]) => {
   const strings: string[] = [];
   let genIdCount = 0;
   let afterKeyword = false;

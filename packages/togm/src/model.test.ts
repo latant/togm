@@ -17,14 +17,14 @@ import {
 import { z } from "zod";
 import { propertyFactories } from "./property";
 import { referenceFactories } from "./reference";
-import { loadMoviesExample, moviesGraph } from "./test/movies";
+import { loadMoviesExample, moviesDAO } from "./test/movies";
 import { expectException, expectValid, useTestDatabase } from "./test/testUtils";
-import { neo, ogm } from "./togm";
-import { CreateNode } from "./update";
+import { ogm } from ".";
+import { CreateNode, runCommands } from "./update";
 import { getKeys } from "./util";
 
 describe("definition tests", () => {
-  const driver = useTestDatabase();
+  const client = useTestDatabase();
 
   it("should label node definitions as 'node'", () => {
     const User = ogm.node({});
@@ -66,23 +66,25 @@ describe("definition tests", () => {
   });
 
   it("should properly handle any type of property", async () => {
-    const graph = ogm.graph({
-      Node: ogm.node({
-        stringField: ogm.string(),
-        numberField: ogm.number(),
-        booleanField: ogm.boolean(),
-        durationField: ogm.duration(),
-        localTimeField: ogm.localTime(),
-        dateField: ogm.date(),
-        localDateTimeField: ogm.localDateTime(),
-        dateTimeField: ogm.dateTime(),
-        pointField: ogm.point(),
-      }),
-    });
+    const dao = ogm.dao(
+      ogm.graph({
+        Node: ogm.node({
+          stringField: ogm.string(),
+          numberField: ogm.number(),
+          booleanField: ogm.boolean(),
+          durationField: ogm.duration(),
+          localTimeField: ogm.localTime(),
+          dateField: ogm.date(),
+          localDateTimeField: ogm.localDateTime(),
+          dateTimeField: ogm.dateTime(),
+          pointField: ogm.point(),
+        }),
+      })
+    );
     const creations: CreateNode[] = [];
     for (let i = 0; i < 10; i++) {
       creations.push(
-        graph.Node.create({
+        dao.Node.create({
           stringField: "",
           numberField: 0,
           booleanField: true,
@@ -95,8 +97,8 @@ describe("definition tests", () => {
         })
       );
     }
-    await neo.writeTx(driver, () => neo.runCommands(creations));
-    const nodes = await neo.readTx(driver, () => graph.Node.findAll({}));
+    await client.writeTx(() => runCommands(creations));
+    const nodes = await client.readTx(() => dao.Node.findAll());
     expect(nodes.length).toBe(10);
     expectValid(
       nodes,
@@ -118,21 +120,23 @@ describe("definition tests", () => {
   });
 
   it("should properly coerce bigint to number", async () => {
-    const graph = ogm.graph({
-      Node: ogm.node({
-        numberField: ogm.number(),
-      }),
-    });
+    const dao = ogm.dao(
+      ogm.graph({
+        Node: ogm.node({
+          numberField: ogm.number(),
+        }),
+      })
+    );
     const creations: CreateNode[] = [];
     for (let i = 0; i < 10; i++) {
       creations.push(
-        graph.Node.create({
+        dao.Node.create({
           numberField: BigInt(0) as any,
         })
       );
     }
-    await neo.writeTx(driver, () => neo.runCommands(creations));
-    const nodes = await neo.readTx(driver, () => graph.Node.findAll({}));
+    await client.writeTx(() => runCommands(creations));
+    const nodes = await client.readTx(() => dao.Node.findAll());
     expect(nodes.length).toBe(10);
     expectValid(
       nodes,
@@ -146,24 +150,26 @@ describe("definition tests", () => {
   });
 
   it("should handle optional references properly", async () => {
-    const graph = ogm.graph({
-      User: ogm.node({
-        phone: ogm.optOut("HAS_PHONE", "Phone"),
-      }),
-      Phone: ogm.node({
-        value: ogm.string(),
-        user: ogm.oneIn("HAS_PHONE", "User"),
-      }),
-      HAS_PHONE: ogm.relationship({}),
+    const dao = ogm.dao(
+      ogm.graph({
+        User: ogm.node({
+          phone: ogm.optOut("HAS_PHONE", "Phone"),
+        }),
+        Phone: ogm.node({
+          value: ogm.string(),
+          user: ogm.oneIn("HAS_PHONE", "User"),
+        }),
+        HAS_PHONE: ogm.relationship({}),
+      })
+    );
+    await client.writeTx(async () => {
+      const u0 = dao.User.create({});
+      const u1 = dao.User.create({});
+      const p = dao.Phone.create({ value: "+36702555555" });
+      const r = dao.HAS_PHONE.create(u0, p, {});
+      await runCommands([u0, u1, p, r]);
     });
-    await neo.writeTx(driver, async () => {
-      const u0 = graph.User.create({});
-      const u1 = graph.User.create({});
-      const p = graph.Phone.create({ value: "+36702555555" });
-      const r = graph.HAS_PHONE.create(u0, p, {});
-      await neo.runCommands([u0, u1, p, r]);
-    });
-    const nodes = await neo.readTx(driver, () => graph.User.select({ phone: {} }).findAll({}));
+    const nodes = await client.readTx(() => dao.User.select({ phone: {} }).findAll());
     expect(nodes.length).toBe(2);
     expectValid(
       nodes,
@@ -183,23 +189,23 @@ describe("definition tests", () => {
   });
 
   it("should correctly update node with type-safe wrappers", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, () => loadMoviesExample());
-    const movie = await neo.readTx(driver, () =>
-      graph.Movie.select({}).findOne({
+    const dao = moviesDAO();
+    await client.writeTx(() => loadMoviesExample());
+    const movie = await client.readTx(() =>
+      dao.Movie.select({}).findOne({
         title: { "=": "Something's Gotta Give" },
       })
     );
-    await neo.writeTx(driver, () =>
-      neo.runCommands([
-        graph.Movie.update(movie!.$id, {
+    await client.writeTx(() =>
+      runCommands([
+        dao.Movie.update(movie!.$id, {
           tagline: "awesome tagline",
           title: "Something",
         }),
       ])
     );
-    const updatedMovie = await neo.readTx(driver, () =>
-      graph.Movie.select({}).findOne({
+    const updatedMovie = await client.readTx(() =>
+      dao.Movie.select({}).findOne({
         title: { "=": "Something" },
       })
     );
@@ -209,29 +215,21 @@ describe("definition tests", () => {
   });
 
   it("should correctly update relationship with type-safe wrappers", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, () => loadMoviesExample());
-    const person = await neo.readTx(driver, () =>
-      graph.Person.select({ moviesActedIn: {} })
-        .where({
-          name: { "=": "Keanu Reeves" },
-        })
-        .findOne({})
+    const graph = moviesDAO();
+    await client.writeTx(() => loadMoviesExample());
+    const person = await client.readTx(() =>
+      graph.Person.select({ moviesActedIn: {} }).findOne({ name: { "=": "Keanu Reeves" } })
     );
     const relId = person!.moviesActedIn.find((m) => m.roles.includes("Julian Mercer"))!.$rid;
-    await neo.writeTx(driver, () =>
-      neo.runCommands([
+    await client.writeTx(() =>
+      runCommands([
         graph.ACTED_IN.update(relId, {
           roles: ["Neo", "Julian Mercer"],
         }),
       ])
     );
-    const movie = await neo.readTx(driver, () =>
-      graph.Movie.select({ actors: {} })
-        .where({
-          title: { "=": "Something's Gotta Give" },
-        })
-        .findOne({})
+    const movie = await client.readTx(() =>
+      graph.Movie.select({ actors: {} }).findOne({ title: { "=": "Something's Gotta Give" } })
     );
     const actor = movie!.actors.find((a) => a.roles.includes("Julian Mercer"))!;
     expect(actor.$id).toBe(person?.$id);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Neo4jClient } from "./client";
 import { conditionCypher, NodeCondition } from "./condition";
 import { AS, CypherNode, Identifier, identifier, joinCypher, MATCH, RETURN, WHERE } from "./cypher";
 import { Entities, NodeDefinition } from "./definition";
@@ -10,7 +11,6 @@ import {
   NodeSelectionResult,
   nodeSelectionResultType,
 } from "./selection";
-import { getTransaction } from "./transaction";
 import { DeepStrict } from "./util";
 
 export type NodeQueries<
@@ -33,10 +33,8 @@ type Finder<S extends NodeSelectionDefinition = NodeSelectionDefinition> = {
   findAll: FindFunction<S, NodeSelectionResult<S>[]>;
 };
 
-type FindFunction<S extends NodeSelectionDefinition, R> = <
-  C extends NodeCondition<S["node"]["properties"]>
->(
-  condition?: C & DeepStrict<NodeCondition<S["node"]["properties"]>, C>
+type FindFunction<S extends NodeSelectionDefinition, R> = (
+  condition?: NodeCondition<S["node"]["properties"]>
 ) => Promise<R>;
 
 const findFunction = (
@@ -55,7 +53,7 @@ const findFunction = (
       [MATCH, "(", rootVar, ":", identifier(label), ")", condCypher && [WHERE, condCypher]],
       [RETURN, selectionCypher, AS, "result"],
     ]);
-    const result = await getTransaction().run(limitlessCypher.text, limitlessCypher.parameters);
+    const result = await Neo4jClient.getTx().run(limitlessCypher.text, limitlessCypher.parameters);
     return resultType.parse(result.records.map((r) => r.get("result")));
   };
 };

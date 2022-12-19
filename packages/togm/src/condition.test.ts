@@ -1,18 +1,15 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { z } from "zod";
-import { loadMoviesExample, moviesGraph } from "./test/movies";
+import { loadMoviesExample, moviesDAO } from "./test/movies";
 import { expectValid, useTestDatabase } from "./test/testUtils";
-import { neo } from "./togm";
 
 describe("condition tests", () => {
-  const driver = useTestDatabase();
+  const client = useTestDatabase();
 
   it("should filter correctly by equaling a property", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, () => loadMoviesExample());
-    const result = await neo.readTx(driver, () =>
-      graph.Movie.where({ released: { "=": 2000 } }).findAll()
-    );
+    const dao = moviesDAO();
+    await client.writeTx(() => loadMoviesExample());
+    const result = await client.readTx(() => dao.Movie.findAll({ released: { "=": 2000 } }));
     expect(result.length).toBe(3);
     expect(result[0].released).toEqual(2000);
     expect(result[1].released).toEqual(2000);
@@ -20,51 +17,47 @@ describe("condition tests", () => {
   });
 
   it("should find node by id", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, () => loadMoviesExample());
-    const movie = await neo.readTx(driver, () => graph.Movie.select({}).findOne());
-    const foundMovies = await neo.readTx(driver, () =>
-      graph.Movie.where({ $id: movie!.$id }).findAll({})
-    );
+    const dao = moviesDAO();
+    await client.writeTx(() => loadMoviesExample());
+    const movie = await client.readTx(() => dao.Movie.select({}).findOne());
+    const foundMovies = await client.readTx(() => dao.Movie.findAll({ $id: movie!.$id }));
     expect(foundMovies).toEqual([movie]);
   });
 
   it("should find node by ids", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, () => loadMoviesExample());
-    const [first, second] = await neo.readTx(driver, () => graph.Movie.findAll());
-    const foundMovies = await neo.readTx(driver, () =>
-      graph.Movie.where({ $id: [first.$id, second.$id] }).findAll({})
+    const dao = moviesDAO();
+    await client.writeTx(() => loadMoviesExample());
+    const [first, second] = await client.readTx(() => dao.Movie.findAll());
+    const foundMovies = await client.readTx(() =>
+      dao.Movie.findAll({ $id: [first.$id, second.$id] })
     );
     expect(foundMovies).toEqual([first, second]);
   });
 
   it("should find nodes that satisfy all conditions", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, () => loadMoviesExample());
-    const movies99 = await neo.readTx(driver, () =>
-      graph.Movie.where({ released: { "=": 1999 } }).findAll()
-    );
+    const dao = moviesDAO();
+    await client.writeTx(() => loadMoviesExample());
+    const movies99 = await client.readTx(() => dao.Movie.findAll({ released: { "=": 1999 } }));
     expect(movies99.length).toBe(4);
-    const movies99a = await neo.readTx(driver, () =>
-      graph.Movie.where({ released: { "=": 1999 }, title: { contains: "a" } }).findAll()
+    const movies99a = await client.readTx(() =>
+      dao.Movie.findAll({ released: { "=": 1999 }, title: { contains: "a" } })
     );
     expect(movies99a.length).toBe(3);
     expect(movies99.filter((m) => m.title.includes("a"))).toEqual(movies99a);
   });
 
   it("should find all nodes that satisfy one of the conditions in a field's $any clause", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, () => loadMoviesExample());
-    const movies = await neo.readTx(driver, () =>
-      graph.Movie.where({
+    const dao = moviesDAO();
+    await client.writeTx(() => loadMoviesExample());
+    const movies = await client.readTx(() =>
+      dao.Movie.findAll({
         released: {
           $any: {
             "<": 1992,
             ">": 1995,
           },
         },
-      }).findAll()
+      })
     );
     expect(movies.length).toBe(31);
     expectValid(
@@ -78,15 +71,15 @@ describe("condition tests", () => {
   });
 
   it("should find all nodes that satisfy one of the conditions in a regular $any clause", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, () => loadMoviesExample());
-    const movies = await neo.readTx(driver, () =>
-      graph.Movie.where({
+    const dao = moviesDAO();
+    await client.writeTx(() => loadMoviesExample());
+    const movies = await client.readTx(() =>
+      dao.Movie.findAll({
         $any: {
           released: { ">": 1999 },
           title: { contains: "x" },
         },
-      }).findAll()
+      })
     );
     expect(movies.length).toBe(16);
     expectValid(
@@ -103,17 +96,17 @@ describe("condition tests", () => {
   });
 
   it("should find all nodes that does not satisfy the conditions in a field's $not clause", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, () => loadMoviesExample());
-    const movies = await neo.readTx(driver, () =>
-      graph.Movie.where({
+    const dao = moviesDAO();
+    await client.writeTx(() => loadMoviesExample());
+    const movies = await client.readTx(() =>
+      dao.Movie.findAll({
         released: {
           $not: {
             ">=": 1992,
             "<=": 1995,
           },
         },
-      }).findAll()
+      })
     );
     expect(movies.length).toBe(31);
     expectValid(
@@ -127,15 +120,15 @@ describe("condition tests", () => {
   });
 
   it("should find all nodes that does not satisfy the condition in a regular $not clause", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, () => loadMoviesExample());
-    const movies = await neo.readTx(driver, () =>
-      graph.Movie.where({
+    const dao = moviesDAO();
+    await client.writeTx(() => loadMoviesExample());
+    const movies = await client.readTx(() =>
+      dao.Movie.findAll({
         $not: {
           released: { $not: { ">": 1999 } },
           title: { $not: { contains: "x" } },
         },
-      }).findAll()
+      })
     );
     expect(movies.length).toBe(16);
     expectValid(
@@ -152,14 +145,14 @@ describe("condition tests", () => {
   });
 
   it("should properly use 'is null' and 'is not null' conditions", async () => {
-    const graph = moviesGraph();
-    await neo.writeTx(driver, () => loadMoviesExample());
-    const allMovies = await neo.readTx(driver, () => graph.Movie.findAll());
-    const moviesWithTagline = await neo.readTx(driver, () =>
-      graph.Movie.where({ tagline: { null: false } }).findAll()
+    const dao = moviesDAO();
+    await client.writeTx(() => loadMoviesExample());
+    const allMovies = await client.readTx(() => dao.Movie.findAll());
+    const moviesWithTagline = await client.readTx(() =>
+      dao.Movie.findAll({ tagline: { null: false } })
     );
-    const moviesWithoutTagline = await neo.readTx(driver, () =>
-      graph.Movie.where({ tagline: { null: true } }).findAll()
+    const moviesWithoutTagline = await client.readTx(() =>
+      dao.Movie.findAll({ tagline: { null: true } })
     );
     expect(moviesWithoutTagline.length).toBe(1);
     expect(moviesWithTagline.length + moviesWithoutTagline.length).toBe(allMovies.length);

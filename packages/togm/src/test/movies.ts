@@ -1,51 +1,45 @@
-import { neo, ogm } from "../togm";
-import { CreateNode } from "../update";
+import { ogm } from "..";
+import { CreateNode, runCommands } from "../update";
 
-export const moviesGraph = () =>
-  ogm.graph({
-    Movie: ogm.node({
-      title: ogm.string(),
-      tagline: ogm.stringOrNull(),
-      released: ogm.number(),
-      actors: ogm.manyIn("ACTED_IN", "Person"),
-      reviewers: ogm.manyIn("REVIEWED", "Person"),
-      producers: ogm.manyIn("PRODUCED", "Person"),
-      writers: ogm.manyIn("WROTE", "Person"),
-      directors: ogm.manyIn("DIRECTED", "Person"),
-    }),
-    Person: ogm.node({
-      name: ogm.string(),
-      born: ogm.numberOrNull(),
-      followers: ogm.manyIn("FOLLOWS", "Person"),
-      followees: ogm.manyOut("FOLLOWS", "Person"),
-      followersAndFollowees: ogm.manyUndirected("FOLLOWS", "Person"),
-      moviesActedIn: ogm.manyOut("ACTED_IN", "Movie"),
-      reviewedMovies: ogm.manyOut("REVIEWED", "Movie"),
-      producedMovies: ogm.manyOut("PRODUCED", "Movie"),
-      writtenMovies: ogm.manyOut("WROTE", "Movie"),
-      directedMovies: ogm.manyOut("DIRECTED", "Movie"),
-    }),
-    ACTED_IN: ogm.relationship({
-      roles: ogm.stringArray(),
-    }),
-    REVIEWED: ogm.relationship({
-      rating: ogm.number(),
-      summary: ogm.string(),
-    }),
-    PRODUCED: ogm.relationship({}),
-    WROTE: ogm.relationship({}),
-    DIRECTED: ogm.relationship({}),
-    FOLLOWS: ogm.relationship({}),
-  });
-
-// const g = moviesGraph();
-// type X = NodeSelectionResult<
-//   NodeSelectionDefinition<
-//     typeof g["definition"],
-//     typeof g["definition"]["nodes"]["Movie"],
-//     { actors: {} }
-//   >
-// >;
+export const moviesDAO = () => {
+  return ogm.dao(
+    ogm.graph({
+      Movie: ogm.node({
+        title: ogm.string(),
+        tagline: ogm.stringOrNull(),
+        released: ogm.number(),
+        actors: ogm.manyIn("ACTED_IN", "Person"),
+        reviewers: ogm.manyIn("REVIEWED", "Person"),
+        producers: ogm.manyIn("PRODUCED", "Person"),
+        writers: ogm.manyIn("WROTE", "Person"),
+        directors: ogm.manyIn("DIRECTED", "Person"),
+      }),
+      Person: ogm.node({
+        name: ogm.string(),
+        born: ogm.numberOrNull(),
+        followers: ogm.manyIn("FOLLOWS", "Person"),
+        followees: ogm.manyOut("FOLLOWS", "Person"),
+        followersAndFollowees: ogm.manyUndirected("FOLLOWS", "Person"),
+        moviesActedIn: ogm.manyOut("ACTED_IN", "Movie"),
+        reviewedMovies: ogm.manyOut("REVIEWED", "Movie"),
+        producedMovies: ogm.manyOut("PRODUCED", "Movie"),
+        writtenMovies: ogm.manyOut("WROTE", "Movie"),
+        directedMovies: ogm.manyOut("DIRECTED", "Movie"),
+      }),
+      ACTED_IN: ogm.relationship({
+        roles: ogm.stringArray(),
+      }),
+      REVIEWED: ogm.relationship({
+        rating: ogm.number(),
+        summary: ogm.string(),
+      }),
+      PRODUCED: ogm.relationship({}),
+      WROTE: ogm.relationship({}),
+      DIRECTED: ogm.relationship({}),
+      FOLLOWS: ogm.relationship({}),
+    })
+  );
+};
 
 export const loadMoviesExample = async () => {
   const TheMatrix: CreateNode = {
@@ -1021,7 +1015,7 @@ export const loadMoviesExample = async () => {
     properties: { name: "James Thompson" },
   };
 
-  await neo.runCommands([
+  await runCommands([
     TheMatrix,
     Keanu,
     Carrie,
