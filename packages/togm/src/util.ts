@@ -61,11 +61,9 @@ type Impossible<K extends keyof any> = {
 
 export type Strict<T, U> = U & Impossible<Exclude<keyof U, keyof T>>;
 
-export type DeepStrict<T, U, Except = unknown> = Strict<T, U> & {
+export type DeepStrict<T, U> = Strict<T, U> & {
   // [K in keyof T & keyof U]: [NonNullable<T[K]>, U[K]]
-  [K in keyof T & keyof U as K]: Except extends T[K]
-    ? T[K]
-    : DeepStrict<NonNullable<T[K]>, U[K], Except>;
+  [K in keyof T & keyof U as K]: DeepStrict<NonNullable<T[K]>, U[K]>;
 };
 
 // type A = { b?: B; c: C };

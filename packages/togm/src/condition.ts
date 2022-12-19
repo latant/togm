@@ -24,40 +24,6 @@ import {
   propertyZodTypes,
   TSProperty,
 } from "./property";
-import { IntersectVals } from "./util";
-
-export type QueryParameter = z.infer<typeof zQueryParameter>;
-const zQueryParameter = z.object({
-  type: z.literal("queryParameter"),
-  name: z.string(),
-});
-
-const isQueryParameter = (value: any): value is QueryParameter => value.type === "queryParameter";
-
-export const queryParameter = <P extends string>(name: P) =>
-  ({ type: "queryParameter", name } satisfies QueryParameter);
-
-type PropertyValueParameters<T, V> = V extends QueryParameter ? { [K in V["name"]]: T } : {};
-
-type PropertyConditionParameters<T, C> = IntersectVals<{
-  [K in keyof C]: K extends RecursiveKey
-    ? PropertyConditionParameters<T, C[K]>
-    : PropertyValueParameters<T, C[K]>;
-}>;
-
-export type ReferenceConditionParameters<
-  N extends Properties,
-  R extends Properties,
-  C
-> = ConditionParameters<N & Omit<R, keyof N>, C>;
-
-export type ConditionParameters<P extends Properties, C> = IntersectVals<{
-  [K in keyof C]: K extends RecursiveKey
-    ? ConditionParameters<P, C[K]>
-    : K extends keyof P
-    ? PropertyConditionParameters<z.infer<P[K]["zodType"]>, C[K]>
-    : never;
-}>;
 
 type RecursiveKey = "$all" | "$any" | "$not";
 
@@ -88,7 +54,7 @@ export const zReferenceCondition = <N extends Properties, R extends Properties>(
 
 type SimpleNodeCondition<P extends Properties = Properties> = {
   [K in keyof P]?: PropertyCondition<P[K]>;
-} & { $id?: number | number[] | QueryParameter };
+} & { $id?: number | number[] };
 
 const zSimpleNodeCondition = <P extends Properties>(props: P) => {
   const fields = {} as { [key: string]: z.ZodType };
@@ -101,15 +67,15 @@ const zSimpleNodeCondition = <P extends Properties>(props: P) => {
 
 type SimpleReferenceCondition<P extends Properties> = {
   [K in keyof P]?: PropertyCondition<P[K]>;
-} & { $id?: number | number[] | QueryParameter; $rid?: number | number[] | QueryParameter };
+} & { $id?: number | number[]; $rid?: number | number[] };
 
 export const zSimpleReferenceCondition = <P extends Properties>(props: P) => {
   const fields = {} as { [key: string]: z.ZodType };
   for (const k in props) {
     fields[k] = zPropertyCondition(props[k]);
   }
-  fields.$id = z.number().or(z.number().array()).or(zQueryParameter);
-  fields.$rid = z.number().or(z.number().array()).or(zQueryParameter);
+  fields.$id = z.number().or(z.number().array());
+  fields.$rid = z.number().or(z.number().array());
   return z.object(fields).strict().partial() as z.ZodType<SimpleReferenceCondition<P>>;
 };
 
@@ -121,7 +87,7 @@ const zPropertyCondition = <P extends Property>(property: P) =>
 type SimplePropertyCondition<P extends Property> = Partial<
   (P["nullable"] extends true ? { null: boolean } : {}) &
     (P["array"] extends true
-      ? { contains: TSProperty[P["propertyType"]] | QueryParameter }
+      ? { contains: TSProperty[P["propertyType"]] }
       : SpecificPropertyCondition<P["propertyType"]>)
 >;
 
@@ -130,18 +96,18 @@ const zSimplePropertyCondition = <P extends Property>(property: P) =>
     .object(property.nullable ? { null: z.boolean() } : {})
     .merge(
       property.array
-        ? z.object({ contains: propertyZodTypes[property.propertyType].or(zQueryParameter) })
+        ? z.object({ contains: propertyZodTypes[property.propertyType] })
         : zSpecificPropertyCondition(property.propertyType)
     )
     .strict()
     .partial() as unknown as z.ZodType<SimplePropertyCondition<P>>;
 
 type SpecificPropertyCondition<P extends PropertyType> = {
-  [K in typeof propertyConditionKeys[P][number]]: TSProperty[P] | QueryParameter;
+  [K in typeof propertyConditionKeys[P][number]]: TSProperty[P];
 };
 
 const zSpecificPropertyCondition = (propertyType: PropertyType) => {
-  const t = coercedPropertyZodTypes[propertyType].or(zQueryParameter);
+  const t = coercedPropertyZodTypes[propertyType];
   return z.object(Object.fromEntries(propertyConditionKeys[propertyType].map((k) => [k, t])));
 };
 
@@ -213,9 +179,7 @@ export const conditionCypher = (
 };
 
 const emitParameter = (value: any): CypherNode => {
-  return isQueryParameter(value)
-    ? [identifier("p"), ".", identifier(value.name)]
-    : cypherParameter(undefined, value);
+  return cypherParameter(undefined, value);
 };
 
 const propCondEmitters: {
@@ -297,92 +261,4 @@ const joinOpCypher = (op: Op, cyps: CypherNode[]): CypherNode => {
   }
   result.push(")");
   return result;
-};
-
-export type ParameterEntry = { name: string; type: z.ZodType };
-
-const nodeCondParamCollectors: {
-  [K in ConditionKey]: (value: any, properties: Properties) => ParameterEntry[];
-} = {
-  $all(v, p) {
-    return conditionParameters(v, p);
-  },
-  $any(v, p) {
-    return conditionParameters(v, p);
-  },
-  $not(v, p) {
-    return conditionParameters(v, p);
-  },
-  $id(v, p) {
-    return valueParameters(v, z.number().or(z.number().array()));
-  },
-  $rid(v, p) {
-    return valueParameters(v, z.number().or(z.number().array()));
-  },
-};
-
-export const conditionParameters = (condition: any, properties: Properties): ParameterEntry[] => {
-  const entries: ParameterEntry[] = [];
-  for (const k in condition) {
-    const collector = nodeCondParamCollectors[k as ConditionKey];
-    if (collector) {
-      entries.push(...collector(condition[k], properties));
-    } else {
-      entries.push(...propertyConditionParameters(condition[k], properties[k]));
-    }
-  }
-  return entries;
-};
-
-const propCondParamCollectors: {
-  [K in PropertyConditionKey]: (value: any, property: Property) => ParameterEntry[];
-} = {
-  $all(v, p) {
-    return propertyConditionParameters(v, p);
-  },
-  $any(v, p) {
-    return propertyConditionParameters(v, p);
-  },
-  $not(v, p) {
-    return propertyConditionParameters(v, p);
-  },
-  "="(v, p) {
-    return valueParameters(v, propertyZodTypes[p.propertyType]);
-  },
-  "<"(v, p) {
-    return valueParameters(v, propertyZodTypes[p.propertyType]);
-  },
-  ">"(v, p) {
-    return valueParameters(v, propertyZodTypes[p.propertyType]);
-  },
-  "<="(v, p) {
-    return valueParameters(v, propertyZodTypes[p.propertyType]);
-  },
-  ">="(v, p) {
-    return valueParameters(v, propertyZodTypes[p.propertyType]);
-  },
-  contains(v, p) {
-    return valueParameters(v, propertyZodTypes[p.propertyType]);
-  },
-  startsWith(v, p) {
-    return valueParameters(v, propertyZodTypes[p.propertyType]);
-  },
-  endsWith(v, p) {
-    return valueParameters(v, propertyZodTypes[p.propertyType]);
-  },
-  null(v, p) {
-    return valueParameters(v, propertyZodTypes[p.propertyType]);
-  },
-};
-
-const propertyConditionParameters = (condition: any, property: Property): ParameterEntry[] => {
-  const entries: ParameterEntry[] = [];
-  for (const k in condition) {
-    entries.push(...propCondParamCollectors[k as PropertyConditionKey](condition[k], property));
-  }
-  return entries;
-};
-
-const valueParameters = (value: any, type: z.ZodType): ParameterEntry[] => {
-  return isQueryParameter(value) ? [{ name: value.name, type }] : [];
 };

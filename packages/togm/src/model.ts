@@ -10,13 +10,7 @@ import {
 } from "./definition";
 import { PropRecord } from "./property";
 import { createNodeQueries, NodeQueries } from "./query";
-import {
-  NodeSelection,
-  NodeSelectionDefinition,
-  NodeSelectionDefinitionMembers,
-} from "./selection";
 import { CreateNode, CreateRelationship, Id, UpdateNode, UpdateRelationship } from "./update";
-import { DeepStrict } from "./util";
 
 type NodeModel<E extends Entities = Entities, N extends NodeDefinition = NodeDefinition> = N & {
   // select: SelectNodeFunction<E, N>;
@@ -32,13 +26,6 @@ type RelationshipModel<R extends RelationshipDefinition = RelationshipDefinition
 type GraphModel<G extends GraphDefinition = GraphDefinition> = {
   [L in keyof G["nodes"]]: NodeModel<G, G["nodes"][L]>;
 } & { [T in keyof G["relationships"]]: RelationshipModel<G["relationships"][T]> };
-
-type SelectNodeFunction<
-  E extends Entities = Entities,
-  N extends NodeDefinition = NodeDefinition
-> = <M extends NodeSelectionDefinitionMembers<E, N>>(
-  members: M & DeepStrict<NodeSelectionDefinitionMembers<E, N>, M>
-) => NodeSelection<NodeSelectionDefinition<E, N, M>>;
 
 type CreateNodeFunction<
   E extends Entities = Entities,

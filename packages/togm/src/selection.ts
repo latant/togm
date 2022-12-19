@@ -1,18 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from "zod";
-import {
-  conditionCypher,
-  conditionParameters,
-  ParameterEntry,
-  ReferenceCondition,
-  ReferenceConditionParameters,
-  zReferenceCondition,
-} from "./condition";
+import { conditionCypher, ReferenceCondition, zReferenceCondition } from "./condition";
 import { CypherNode, Identifier, identifier, MapEntry, WHERE } from "./cypher";
 import { Entities, NodeDefinition } from "./definition";
 import { coercedPropertyZodTypes } from "./property";
 import { Reference, WithMultiplicity, zWithMultiplicity } from "./reference";
-import { getValues, IntersectVals } from "./util";
+import { getValues } from "./util";
 
 export type NodeSelectionDefinitionMembers<E extends Entities, N extends NodeDefinition> = {
   [K in keyof N["references"]]?: ReferenceSelectionDefinitionMembers<E, N["references"][K]>;
@@ -224,33 +217,5 @@ const selectedReferenceCypher = (
     referenceSelectionCypher(def, targetRel, targetNode),
     "]",
     r.multiplicity !== "many" && "[0]",
-  ];
-};
-
-export type NodeSelectionParameters<S extends NodeSelectionDefinition> = IntersectVals<{
-  [K in keyof S["references"]]: ReferenceSelectionParameters<S["references"][K]>;
-}>;
-
-type ReferenceSelectionParameters<S extends ReferenceSelectionDefinition> =
-  NodeSelectionParameters<S> &
-    ReferenceConditionParameters<
-      S["node"]["properties"],
-      S["relationship"]["properties"],
-      S["condition"]
-    >;
-
-export const nodeSelectionParameters = (definition: NodeSelectionDefinition): ParameterEntry[] => {
-  return Object.values(definition.references).flatMap(referenceSelectionParametersShape);
-};
-
-const referenceSelectionParametersShape = (
-  definition: ReferenceSelectionDefinition
-): ParameterEntry[] => {
-  return [
-    ...nodeSelectionParameters(definition),
-    ...conditionParameters(definition.condition ?? {}, {
-      ...definition.relationship.properties,
-      ...definition.node.properties,
-    }),
   ];
 };

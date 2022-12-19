@@ -19,9 +19,9 @@ import { queryParameter } from "./condition";
 /** Functions to use for creating a graph schema. */
 export const ogm = {
   /** Creates a graph from named entity definitions. */
-  graph: createGraph,
+  // graph: createGraph,
   /** Creates a node definition. */
-  node: defineNode,
+  // node: defineNode,
   /** Creates a relationship definition. */
   relationship: defineRelationship,
   /** Creates a query parameter in a type-safe condition. */
