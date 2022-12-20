@@ -1,5 +1,5 @@
 import { Session } from "neo4j-driver";
-import { Neo4jClient } from "./client";
+import { Neo4jClient } from ".";
 import { expectException, useTestDatabase } from "./test/testUtils";
 
 describe("transaction tests", () => {

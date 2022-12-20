@@ -9,11 +9,14 @@ import { PropRecord } from "./property";
 import { createNodeQueries, NodeQueries } from "./query";
 import { CreateNode, CreateRelationship, Id, UpdateNode, UpdateRelationship } from "./update";
 
-type NodeModel<E extends Entities = Entities, N extends NodeDefinition = NodeDefinition> = N & {
+type NodeModel<
+  G extends GraphDefinition = GraphDefinition,
+  N extends NodeDefinition = NodeDefinition
+> = N & {
   // select: SelectNodeFunction<E, N>;
-  create: CreateNodeFunction<E, N>;
+  create: CreateNodeFunction<G, N>;
   update: UpdateNodeFunction<N["properties"]>;
-} & NodeQueries<E, N>;
+} & NodeQueries<G, N>;
 
 type RelationshipModel<R extends RelationshipDefinition = RelationshipDefinition> = R & {
   create: CreateRelationshipFunction<R>;

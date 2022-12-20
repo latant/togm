@@ -43,7 +43,7 @@ export const nodeSelectionTypes = <E extends Entities>(entities: E) => {
       refTypes[l][r] = z
         .strictObject({
           $where: zReferenceCondition(
-            node.properties,
+            entities.nodes[reference.label].properties,
             entities.relationships[reference.relationshipType].properties
           ),
           ...nodeFields[reference.label],

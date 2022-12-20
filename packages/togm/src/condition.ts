@@ -30,12 +30,14 @@ type RecursiveKey = "$all" | "$any" | "$not";
 type All<T> = T & { $any?: Any<T>; $not?: All<T> };
 
 const zAll = <T extends z.SomeZodObject>(type: T): z.ZodType<All<z.infer<T>>> =>
-  z.lazy(() => type.merge(z.object({ $any: zAny(type).optional(), $not: zAll(type).optional() })));
+  z.lazy(() =>
+    type.merge(z.object({ $any: zAny(type).optional(), $not: zAll(type).optional() }).strict())
+  );
 
 type Any<T> = T & { $all?: All<T>; $not?: All<T> };
 
 const zAny = <T extends z.SomeZodObject>(type: T): z.ZodType<Any<z.infer<T>>> =>
-  type.merge(z.object({ $all: zAll(type).optional(), $not: zAll(type).optional() }));
+  type.merge(z.object({ $all: zAll(type).optional(), $not: zAll(type).optional() })).strict();
 
 export type NodeCondition<P extends Properties = Properties> = All<SimpleNodeCondition<P>>;
 

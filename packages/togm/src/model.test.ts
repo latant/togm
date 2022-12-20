@@ -65,7 +65,7 @@ describe("definition tests", () => {
     expect(r.oneOut("HAS_ADDRESS", "Address").multiplicity).toBe("one");
   });
 
-  it("should properly handle any type of property", async () => {
+  it("should correctly handle any type of property", async () => {
     const dao = ogm.dao(
       ogm.graph({
         Node: ogm.node({
@@ -119,7 +119,7 @@ describe("definition tests", () => {
     );
   });
 
-  it("should properly coerce bigint to number", async () => {
+  it("should correctly coerce bigint to number", async () => {
     const dao = ogm.dao(
       ogm.graph({
         Node: ogm.node({
@@ -149,7 +149,7 @@ describe("definition tests", () => {
     );
   });
 
-  it("should handle optional references properly", async () => {
+  it("should handle optional references correctly", async () => {
     const dao = ogm.dao(
       ogm.graph({
         User: ogm.node({
@@ -190,7 +190,7 @@ describe("definition tests", () => {
 
   it("should correctly update node with type-safe wrappers", async () => {
     const dao = moviesDAO();
-    await client.writeTx(() => loadMoviesExample());
+    await client.writeTx(loadMoviesExample);
     const movie = await client.readTx(() =>
       dao.Movie.select({}).findOne({
         title: { "=": "Something's Gotta Give" },
@@ -216,7 +216,7 @@ describe("definition tests", () => {
 
   it("should correctly update relationship with type-safe wrappers", async () => {
     const graph = moviesDAO();
-    await client.writeTx(() => loadMoviesExample());
+    await client.writeTx(loadMoviesExample);
     const person = await client.readTx(() =>
       graph.Person.select({ moviesActedIn: {} }).findOne({ name: { "=": "Keanu Reeves" } })
     );

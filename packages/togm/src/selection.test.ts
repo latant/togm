@@ -119,7 +119,7 @@ describe("test type-safe graph selections", () => {
 
   it("should generate where clause in the cypher of a selection using a reference condition", async () => {
     const dao = moviesDAO();
-    await client.writeTx(() => loadMoviesExample());
+    await client.writeTx(loadMoviesExample);
     const movie = await client.readTx(() =>
       dao.Movie.select({ actors: { $where: { roles: { contains: "Racer X" } } } }).findOne({
         title: { "=": "Speed Racer" },
@@ -143,5 +143,14 @@ describe("test type-safe graph selections", () => {
         ]),
       })
     );
+  });
+
+  it("should generate valid simple cypher text for selection", async () => {
+    const dao = moviesDAO();
+    const cypherText = dao.Movie.select({}).cypher("n").text;
+    expect(cypherText).toBe(
+      "{`title`:`n`.`title`,`tagline`:`n`.`tagline`,`released`:`n`.`released`,`$id`:id(`n`)}"
+    );
+    expect(typeof dao.Movie.select({}).cypher().text).toBe("string");
   });
 });

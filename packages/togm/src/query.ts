@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { Neo4jClient } from "./client";
 import { conditionCypher, NodeCondition } from "./condition";
-import { AS, CypherNode, Identifier, identifier, joinCypher, MATCH, RETURN, WHERE } from "./cypher";
-import { Entities, NodeDefinition } from "./definition";
+import { AS, identifier, joinCypher, LIMIT, MATCH, Query, RETURN, WHERE } from "./cypher";
+import { GraphDefinition, NodeDefinition } from "./definition";
 import {
   defineNodeSelection,
   nodeSelectionCypher,
@@ -14,16 +14,16 @@ import {
 import { DeepStrict } from "./util";
 
 export type NodeQueries<
-  E extends Entities = Entities,
+  G extends GraphDefinition = GraphDefinition,
   N extends NodeDefinition = NodeDefinition
 > = {
-  select: <M extends NodeSelectionDefinitionMembers<E, N>>(
-    members: M & DeepStrict<NodeSelectionDefinitionMembers<E, N>, M>
-  ) => Select<NodeSelectionDefinition<E, N, M>>;
-} & Finder<NodeSelectionDefinition<E, N, {}>>;
+  select: <M extends NodeSelectionDefinitionMembers<G, N>>(
+    members: M & DeepStrict<NodeSelectionDefinitionMembers<G, N>, M>
+  ) => Select<NodeSelectionDefinition<G, N, M>>;
+} & Finder<NodeSelectionDefinition<G, N, {}>>;
 
 type Select<S extends NodeSelectionDefinition = NodeSelectionDefinition> = {
-  cypher: (n?: Identifier) => CypherNode;
+  cypher: (n?: string) => Query;
   resultType: z.ZodType<NodeSelectionResult<S>>;
   definition: S;
 } & Finder<S>;
@@ -38,44 +38,50 @@ type FindFunction<S extends NodeSelectionDefinition, R> = (
 ) => Promise<R>;
 
 const findFunction = (
+  graph: GraphDefinition,
   label: string,
   definition: NodeSelectionDefinition,
-  resultType: z.ZodType
+  resultType: z.ZodType,
+  single: boolean
 ) => {
   const rootVar = identifier();
   const selectionCypher = nodeSelectionCypher(definition, rootVar);
+  const valuesType = resultType.array();
+  const conditionType = graph.conditionTypes[label];
   return async (condition: any) => {
-    const condCypher = conditionCypher("all", condition, {
+    const parsedCondition = conditionType.parse(condition ?? {});
+    const condCypher = conditionCypher("all", parsedCondition, {
       properties: definition.node.properties,
       variable: rootVar,
     });
-    const limitlessCypher = joinCypher([
+    const cypher = joinCypher([
       [MATCH, "(", rootVar, ":", identifier(label), ")", condCypher && [WHERE, condCypher]],
       [RETURN, selectionCypher, AS, "result"],
+      single && [LIMIT, "1"],
     ]);
-    const result = await Neo4jClient.getTx().run(limitlessCypher.text, limitlessCypher.parameters);
-    return resultType.parse(result.records.map((r) => r.get("result")));
+    const result = await Neo4jClient.getTx().run(cypher.text, cypher.parameters);
+    const values = valuesType.parse(result.records.map((r) => r.get("result")));
+    return single ? values[0] : values;
   };
 };
 
-export const createNodeQueries = (entities: Entities, label: string): NodeQueries => {
+export const createNodeQueries = (graph: GraphDefinition, label: string): NodeQueries => {
   const rootVar = identifier();
-  const node = entities.nodes[label];
+  const node = graph.nodes[label];
+  const selectionType = graph.selectionTypes[label];
   const select = (members: any): Select => {
-    const definition = defineNodeSelection(entities, node, members);
-    const resultType = nodeSelectionResultType(definition).array() as z.ZodType;
+    const parsedMembers = selectionType.parse(members);
+    const definition = defineNodeSelection(graph, node, parsedMembers);
+    const resultType = nodeSelectionResultType(definition) as z.ZodType;
     return {
-      cypher(n = rootVar) {
-        return nodeSelectionCypher(definition, n);
+      cypher(n) {
+        const v = n ? identifier(n) : rootVar;
+        return joinCypher(nodeSelectionCypher(definition, v));
       },
       definition,
       resultType,
-      findAll: findFunction(label, definition, resultType),
-      findOne: findFunction(
-        label,
-        definition,
-        resultType.transform((r) => r[0])
-      ),
+      findAll: findFunction(graph, label, definition, resultType, false),
+      findOne: findFunction(graph, label, definition, resultType, true),
     };
   };
   return {

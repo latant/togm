@@ -1,6 +1,6 @@
 import { StartedNeo4jContainer } from "testcontainers";
 import { ZodType } from "zod";
-import { Neo4jClient } from "../client";
+import { Neo4jClient } from "..";
 
 export const testGlobal: {
   neo4j: {

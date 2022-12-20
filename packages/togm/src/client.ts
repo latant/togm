@@ -25,16 +25,12 @@ export class Neo4jClient {
   }
 
   private wrapTransactionblock<R>(block: TransactionBlock<R>) {
-    const ns = Neo4jClient.clsNamespace;
-    if (ns) {
-      return async (transaction: Transaction) =>
-        ns.runAndReturn(async () => {
-          ns.set("transaction", transaction);
-          return await block(transaction);
-        });
-    } else {
-      return block;
-    }
+    return async (transaction: Transaction) => {
+      return Neo4jClient.clsNamespace.runAndReturn(async () => {
+        Neo4jClient.clsNamespace.set("transaction", transaction);
+        return await block(transaction);
+      });
+    };
   }
 
   public static getTx() {
